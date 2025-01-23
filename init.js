@@ -5,45 +5,35 @@ const path = require('path');
 const structure = {
     'src': {
         'utils': {
-            'config': ['config.js'],
+            'config': ['index.js'],
             'logger': ['logger.js'],
-            'helpers': ['helpers.js']
+            'helpers': ['file-helpers.js', 'json-helpers.js']
         },
         'scrapers': {
-            'puppeteer': ['browser.js', 'tender-scraper.js'],
+            'base': ['base-scraper.js'],
+            'puppeteer': [
+                'browser.js',
+                'listings-scraper.js',
+                'details-scraper.js'
+            ],
             'cheerio': ['parser.js'],
-            'playwright': ['playwright-scraper.js'],
-            'selenium': ['selenium-scraper.js']
+            'playwright': ['placeholder.js'],
+            'selenium': ['placeholder.js']
         },
-        'models': ['tender.js'],
-        'index.js': `
-const puppeteerScraper = require('./scrapers/puppeteer/tender-scraper');
-const cheerioParser = require('./scrapers/cheerio/parser');
-const logger = require('./utils/logger/logger');
-
-async function main() {
-  try {
-    const tenders = await puppeteerScraper.scrape();
-    const parsedData = cheerioParser.parse(tenders);
-    // TODO: Add other scrapers
-    
-    return parsedData;
-  } catch (error) {
-    logger.error(error);
-  }
-}
-
-main();
-`
-    },
-    'logs': {},
-    'tests': {
-        'scrapers': ['puppeteer.test.js', 'cheerio.test.js']
+        'processors': {
+            'keyword-analyzer.js': '',
+            'file-downloader.js': ''
+        },
+        'models': ['tender.js', 'tender-details.js']
     },
     'data': {
-        'raw': {},
+        'raw': {
+            'listings': {},
+            'tender_details': {}
+        },
         'processed': {}
-    }
+    },
+    'logs': {}
 };
 
 function createStructure(structure, basePath = __dirname) {

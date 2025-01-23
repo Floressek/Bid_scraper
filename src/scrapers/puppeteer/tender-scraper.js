@@ -25,7 +25,7 @@ async function scrapeTenders() {
 
     const page = await browser.newPage();
 
-// Dodaj więcej headerów
+    // Dodaj więcej headerów
     await page.setExtraHTTPHeaders({
         'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -46,45 +46,54 @@ async function scrapeTenders() {
             timeout: 30000
         });
 
-        // Czekamy na załadowanie tabeli
+        // Czekamy na załadowanie tabeli i paginacji
         await page.waitForSelector('lib-table');
         await page.waitForSelector('.pagination-container');
-        logger.info('Table element found');
 
-        // Czekamy na załadowanie wierszy
-        await page.waitForSelector('tbody tr');
-        logger.info('Table rows found');
+        const allTenders = [];
+        let hasNextPage = true;
+        let pageNumber = 1;
 
-        // Pobierz dane z tabeli
-        const tableData = await page.evaluate(() => {
-            const rows = Array.from(document.querySelectorAll('tbody tr'));
-            return rows.map(row => {
-                const cells = Array.from(row.querySelectorAll('td'));
-                return {
-                    title: cells[0]?.textContent?.trim(),
-                    number: cells[1]?.textContent?.trim(),
-                    status: cells[2]?.textContent?.trim(),
-                    publicationDate: cells[3]?.textContent?.trim(),
-                    link: row.querySelector('a')?.href
-                };
+        while (hasNextPage) {
+            logger.info(`Scraping page ${pageNumber}`);
+
+            // Czekamy na załadowanie danych w tabeli
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Pobierz dane z aktualnej strony
+            const pageTenders = await page.evaluate(() => {
+                const rows = Array.from(document.querySelectorAll('tbody tr'));
+                return rows.map(row => {
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    return {
+                        title: cells[0]?.textContent?.trim(),
+                        number: cells[1]?.textContent?.trim(),
+                        status: cells[2]?.textContent?.trim(),
+                        publicationDate: cells[3]?.textContent?.trim(),
+                        link: row.querySelector('a')?.href
+                    };
+                });
             });
-        });
 
-        logger.info('Found tenders:', tableData.length);
-        logger.info('Sample tender:', tableData[0]);
+            allTenders.push(...pageTenders);
+            logger.info(`Found ${pageTenders.length} tenders on page ${pageNumber}`);
 
-        // Sprawdź też przyciski paginacji
-        const paginationInfo = await page.evaluate(() => {
-            const pagination = document.querySelector('.pagination-container');
-            return pagination ? {
-                exists: true,
-                text: pagination.textContent
-            } : { exists: false };
-        });
+            // Sprawdź czy jest następna strona i kliknij jeśli jest
+            const hasNext = await page.evaluate(() => {
+                const nextButton = document.querySelector('.btn.btn-sm.btn-outline-secondary.append-arrow');
+                return !nextButton.classList.contains('disabled');
+            });
 
-        logger.info('Pagination: ', paginationInfo);
+            if (hasNext) {
+                await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
+                pageNumber++;
+            } else {
+                hasNextPage = false;
+            }
+        }
 
-        return tableData;
+        logger.info(`Total tenders scraped: ${allTenders.length}`);
+        return allTenders;
 
     } catch (error) {
         logger.error('Error:', error);
