@@ -7,14 +7,16 @@ module.exports = {
         slowMo: 250
     },
     selectors: {
-        searchBox: 'input[placeholder="Wyszukaj ogłoszenia"]',
-        tenderList: 'div.relative.overflow-hidden',
+        // Bazując na HTMLu, widzę te klasy:
+        searchInput: 'input.form-control.ng-untouched.ng-pristine.ng-valid',
+        moduleSearch: '.module.module-search',
+        tenderList: '.row.container',
         tenderItem: {
-            container: 'div.card',
-            title: 'h3',
-            link: 'a',
-            date: 'span.date',
-            status: 'span.status'
+            container: '.col-12',
+            title: '.text', // lub bardziej specyficzny selektor jak będzie potrzebny
+            link: 'a.form-control',
+            date: '.lib-date-0', // jeden z datepickerów
+            status: '.form-select'
         }
     }
 };
