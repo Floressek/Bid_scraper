@@ -4,17 +4,17 @@
   "description": "Scraper for public tenders",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node index.js",
     "init": "node init.js",
     "test": "jest",
     "scrape:puppeteer": "node src/scrapers/puppeteer/tender-scraper.js",
     "scrape:cheerio": "node src/scrapers/cheerio/parser.js"
   },
   "dependencies": {
-    "puppeteer": "^21.0.0",
+    "cheerio": "^1.0.0-rc.12",
+    "puppeteer": "^24.1.1",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "cheerio": "^1.0.0-rc.12",
     "winston": "^3.10.0"
   },
   "devDependencies": {
