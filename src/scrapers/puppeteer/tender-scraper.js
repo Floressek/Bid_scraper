@@ -34,10 +34,10 @@ async function scrapeTenders() {
         'Cache-Control': 'max-age=0',
     });
 
-// Emuluj normalną przeglądarkę
+    // Emuluj normalną przeglądarkę - agents
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-// Włącz JavaScript
+    // Włącz JavaScript
     await page.setJavaScriptEnabled(true);
 
     try {
@@ -48,6 +48,7 @@ async function scrapeTenders() {
 
         // Czekamy na załadowanie tabeli
         await page.waitForSelector('lib-table');
+        await page.waitForSelector('.pagination-container');
         logger.info('Table element found');
 
         // Czekamy na załadowanie wierszy
@@ -82,8 +83,6 @@ async function scrapeTenders() {
         });
 
         logger.info('Pagination: ', paginationInfo);
-
-        // await page.screenshot({ path: 'debug-table.png', fullPage: true });
 
         return tableData;
 
