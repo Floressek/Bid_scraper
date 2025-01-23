@@ -1,13 +1,14 @@
 const { scrapeTenders } = require('./scrapers/puppeteer/tender-scraper');
-const logger = require('./utils/logger/logger');
+const {createLogger} = require('./utils/logger/logger');
+const logger = createLogger(__filename);
 const path = require('path');
 const fs = require('fs');
 
-console.log('Starting application...');
+logger.info('Starting application...');
 
 async function main() {
     try {
-        console.log('Entering main function...');
+        logger.info('Entering main function...');
         logger.info('Starting tender scraping...');
         const tenders = await scrapeTenders();
 
@@ -16,7 +17,7 @@ async function main() {
 
         logger.info(`Scraped ${tenders?.length || 0} tenders successfully`);
     } catch (error) {
-        console.error('Error:', error);
+        logger.error('Error:', error);
         logger.error('Main execution failed:', error);
     }
 }

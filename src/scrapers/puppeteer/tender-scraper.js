@@ -1,7 +1,8 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const config = require('../../utils/config/config');
-const logger = require('../../utils/logger/logger');
+const {createLogger} = require('../../utils/logger/logger');
+const logger = createLogger(__filename);
 
 puppeteer.use(StealthPlugin());
 
@@ -47,11 +48,11 @@ async function scrapeTenders() {
 
         // Czekamy na załadowanie tabeli
         await page.waitForSelector('lib-table');
-        console.log('Table element found');
+        logger.info('Table element found');
 
         // Czekamy na załadowanie wierszy
         await page.waitForSelector('tbody tr');
-        console.log('Table rows found');
+        logger.info('Table rows found');
 
         // Pobierz dane z tabeli
         const tableData = await page.evaluate(() => {
@@ -68,8 +69,8 @@ async function scrapeTenders() {
             });
         });
 
-        console.log('Found tenders:', tableData.length);
-        console.log('Sample tender:', tableData[0]);
+        logger.info('Found tenders:', tableData.length);
+        logger.info('Sample tender:', tableData[0]);
 
         // Sprawdź też przyciski paginacji
         const paginationInfo = await page.evaluate(() => {
@@ -80,14 +81,14 @@ async function scrapeTenders() {
             } : { exists: false };
         });
 
-        console.log('Pagination:', paginationInfo);
+        logger.info('Pagination: ', paginationInfo);
 
-        await page.screenshot({ path: 'debug-table.png', fullPage: true });
+        // await page.screenshot({ path: 'debug-table.png', fullPage: true });
 
         return tableData;
 
     } catch (error) {
-        console.error('Error:', error);
+        logger.error('Error:', error);
         throw error;
     }
     // Nie zamykamy przeglądarki żeby zobaczyć co się dzieje
