@@ -1,4 +1,4 @@
-const { PuppeteerListingsScraper  } = require('./scrapers/puppeteer/listings-scraper');
+const PuppeteerListingsScraper = require('./scrapers/puppeteer/listings-scraper');
 const db = require('./utils/database/mongo');
 const path = require('path');
 const fs = require('fs');
@@ -14,15 +14,14 @@ async function main() {
 
         logger.info('Entering main function...');
         logger.info('Starting tender scraping...');
-        const scraper = new PuppeteerListingsScraper();
-        const tenders = await scraper.scrape();
+        const tenders = await PuppeteerListingsScraper.scrape();
 
         await db.saveListings(tenders, 'PUPPETEER');
         logger.info(`Scraped ${tenders?.length || 0} tenders successfully`);
 
         await db.disconnect();
     } catch (error) {
-        logger.error('Main execution failed:', error);
+        logger.error('Main execution failed:', error.message); // dodajmy .message
         await db.disconnect();
         process.exit(1);
     }

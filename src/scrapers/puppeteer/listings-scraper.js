@@ -1,108 +1,97 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const BasicScraper = require('../base/base-scraper');
+const BaseScraper = require('../base/base-scraper');
 const {getRandomUserAgent} = require('../../utils/helpers/browser-helpers');
 const config = require('../../utils/config/config');
 const {createLogger} = require('../../utils/logger/logger');
 
 const logger = createLogger(__filename);
 
-puppeteer.use(StealthPlugin());
+class PuppeteerListingsScraper extends BaseScraper {
+    constructor() {
+        super('PUPPETEER'); // This is the source of the scraper
+        puppeteer.use(StealthPlugin());
+    }
 
-async function scrapeTenders() {
-    const browser = await puppeteer.launch({
-        headless: false,
-        executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', // użyj lokalnego Chrome
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-web-security',
-            '--disable-features=IsolateOrigins,site-per-process',
-            '--window-size=1920,1080',
-        ],
-        defaultViewport: {
-            width: 1920,
-            height: 1080
-        }
-    });
+    // This is the main function that will be called from the main file
+    async scrape() {
+        await this.initialize(); // db connection
 
-    const page = await browser.newPage();
-
-    // Dodaj więcej headerów
-    await page.setExtraHTTPHeaders({
-        'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Cache-Control': 'max-age=0',
-    });
-
-    // Emuluj normalną przeglądarkę - agents
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-
-    // Włącz JavaScript
-    await page.setJavaScriptEnabled(true);
-
-    try {
-        await page.goto('https://ezamowienia.gov.pl/mo-client-board/bzp/list', {
-            waitUntil: ['networkidle0', 'domcontentloaded'],
-            timeout: 30000
+        const browser = await puppeteer.connect({
+            browserWSEndpoint: process.env.BROWSER_WS_ENDPOINT,
+            args: [`--user-agent=${getRandomUserAgent()}`]
         });
 
-        // Czekamy na załadowanie tabeli i paginacji
-        await page.waitForSelector('lib-table');
-        await page.waitForSelector('.pagination-container');
+        const page = await browser.newPage();
 
-        const allTenders = [];
-        let hasNextPage = true;
-        let pageNumber = 1;
+        // Helpful for debugging
+        await page.setExtraHTTPHeaders({
+            'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Cache-Control': 'max-age=0',
+        });
 
-        while (hasNextPage) {
-            logger.info(`Scraping page ${pageNumber}`);
+        try {
+            await page.goto(config.baseUrl, {
+                waitUntil: ['networkidle0', 'domcontentloaded'],
+                timeout: 30000
+            });
+            // Wait for the page to load
+            await page.waitForSelector('lib-table');
+            await page.waitForSelector('.pagination-container');
 
-            // Czekamy na załadowanie danych w tabeli
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Get the total number of pages
+            const allTenders = [];
+            let hasNextPage = true;
+            let pageNumber = 1;
 
-            // Pobierz dane z aktualnej strony
-            const pageTenders = await page.evaluate(() => {
-                const rows = Array.from(document.querySelectorAll('tbody tr'));
-                return rows.map(row => {
-                    const cells = Array.from(row.querySelectorAll('td'));
-                    return {
-                        title: cells[0]?.textContent?.trim(),
-                        number: cells[1]?.textContent?.trim(),
-                        status: cells[2]?.textContent?.trim(),
-                        publicationDate: cells[3]?.textContent?.trim(),
-                        link: row.querySelector('a')?.href
-                    };
+            while (hasNextPage && pageNumber <= 50) { //FIXME: This is just a temporary limit for testing
+                logger.info(`Scraping page ${pageNumber}`);
+
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                const pageTenders = await page.evaluate(() => {
+                    const rows = Array.from(document.querySelectorAll('tbody tr'));
+                    return rows.map(row => {
+                        const cells = Array.from(row.querySelectorAll('td')); // Get all cells in the row, td => table data
+                        return { // Return an object with the data we need
+                            title: cells[0]?.textContent?.trim(),
+                            number: cells[1]?.textContent?.trim(),
+                            status: cells[2]?.textContent?.trim(),
+                            publicationDate: cells[3]?.textContent?.trim(),
+                            link: row.querySelector('a')?.href
+                        };
+                    });
                 });
-            });
+                await this.saveListings(pageTenders); // to the database SAVED
 
-            allTenders.push(...pageTenders);
-            logger.info(`Found ${pageTenders.length} tenders on page ${pageNumber}`);
+                allTenders.push(...pageTenders);
+                logger.info(`Found and saved ${pageTenders.length} tenders on page ${pageNumber}`);
 
-            // Sprawdź czy jest następna strona i kliknij jeśli jest
-            const hasNext = await page.evaluate(() => {
-                const nextButton = document.querySelector('.btn.btn-sm.btn-outline-secondary.append-arrow');
-                return !nextButton.classList.contains('disabled');
-            });
+                // Check if there is a next page
+                const hasNext = await page.evaluate(() => {
+                    const nextButton = document.querySelector('.btn.btn-sm.btn-outline-secondary.append-arrow'); // Get the next button
+                    return !nextButton.classList.contains('disabled'); // Check if the button is disabled - MAY INDICATE NO MORE PAGES
+                });
 
-            if (hasNext) {
-                await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
-                pageNumber++;
-            } else {
-                hasNextPage = false;
+                if (hasNext) {
+                    await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow'); // Click the next button
+                    pageNumber++;
+                } else {
+                    hasNextPage = false;
+                }
             }
+            logger.info(`Total tenders scraped and saved: ${allTenders.length}`);
+            return allTenders;
+        } catch (error) {
+            logger.error('Failed to load page:', error);
+            return [];
+        } finally {
+            await browser.close();
+            await this.db.disconnect();
         }
-
-        logger.info(`Total tenders scraped: ${allTenders.length}`);
-        return allTenders;
-
-    } catch (error) {
-        logger.error('Error:', error);
-        throw error;
     }
-    // Nie zamykamy przeglądarki żeby zobaczyć co się dzieje
 }
 
-module.exports = {scrapeTenders};
+module.exports = new PuppeteerListingsScraper();

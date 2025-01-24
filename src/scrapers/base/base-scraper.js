@@ -15,7 +15,7 @@ class BaseScraper {
         return await this.db.saveListings(listings, this.scraperType);
     }
 
-    async saveTednerDetails(details) {
+    async saveTenderDetails(details) {
         return await this.db.saveTenderDetails(details, this.scraperType);
     }
 }
