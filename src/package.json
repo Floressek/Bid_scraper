@@ -5,10 +5,16 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node index.js",
+    "start:normal": "node index.js normal",
+    "start:xhr": "node index.js xhr",
+    "start:api": "node index.js api",
+    "start:both": "node index.js normal & node index.js xhr",
+    "start:all": "node index.js normal & node index.js xhr & node index.js api",
     "init": "node init.js",
     "test": "jest",
     "scrape:puppeteer": "node src/scrapers/puppeteer/tender-scraper.js",
-    "scrape:cheerio": "node src/scrapers/cheerio/parser.js"
+    "scrape:cheerio": "node src/scrapers/cheerio/parser.js",
+    "scrape:api": "node src/scrapers/official-api/official-api-scraper.js"
   },
   "dependencies": {
     "cheerio": "^1.0.0-rc.12",

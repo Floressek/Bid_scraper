@@ -11,6 +11,10 @@ class BaseScraper {
         await this.db.connect();
     }
 
+    async scrape(keyword = '') {
+        throw new Error('Method not implemented');
+    }
+
     async saveListings(listings) {
         return await this.db.saveListings(listings, this.scraperType);
     }

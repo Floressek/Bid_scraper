@@ -21,7 +21,8 @@ class MongoDB {
     }
 
     async saveListings(listings, scraperType) {
-        const collection = this.db.collection('tender_listings');
+        const collectionName = `tender_listings_${scraperType.toLowerCase()}`;
+        const collection = this.db.collection(collectionName);
         const documents = listings.map(listing => ({
             ...listing,
             scraperType,
@@ -29,7 +30,7 @@ class MongoDB {
             processed: false,
             source: 'ezamowienia'
         }));
-        logger.info(`Inserting ${documents.length} listings`);
+        logger.info(`Inserting ${documents.length} listings to ${collectionName}`);
         return await collection.insertMany(documents);
     }
 
