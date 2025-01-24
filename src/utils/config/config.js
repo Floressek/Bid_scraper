@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 module.exports = {
     baseUrl: 'https://ezamowienia.gov.pl/mo-client-board/bzp/list',
     searchTerms: ['microsoft', 'license'],
