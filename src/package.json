@@ -10,9 +10,10 @@
     "start:api": "node index.js api",
     "start:both": "node index.js normal & node index.js xhr",
     "start:all": "node index.js normal & node index.js xhr & node index.js api",
+    "compare": "node utils/comparison/collection-comparison.js",
     "init": "node init.js",
     "test": "jest",
-    "scrape:puppeteer": "node src/scrapers/puppeteer/tender-scraper.js",
+    "scrape:puppeteer": "node src/scrapers/puppeteer/listing-scraper.js",
     "scrape:cheerio": "node src/scrapers/cheerio/parser.js",
     "scrape:api": "node src/scrapers/official-api/official-api-scraper.js"
   },
@@ -21,7 +22,7 @@
     "dotenv": "^16.4.7",
     "mongodb": "^6.12.0",
     "mongoose": "^8.9.5",
-    "puppeteer": "^24.1.1",
+    "puppeteer": "^24.2.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "winston": "^3.10.0"

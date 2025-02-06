@@ -10,6 +10,18 @@ module.exports = {
                 timeout: 30000,
                 protocolTimeout: 30000
             }
+        },
+        launch: {
+            headless: false,
+            defaultViewport: null, // null means the viewport is 800x600,
+            // executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--window-size=1920,1080',
+                '--start-maximized'
+            ],
+            slowMo: 20
         }
     },
     selectors: {
