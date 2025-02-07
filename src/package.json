@@ -6,15 +6,15 @@
   "scripts": {
     "start": "node index.js",
     "start:normal": "node index.js normal",
+    "start:with-details": "node index.js normal --with-details",
+    "start:only-details": "node index.js details",
     "start:xhr": "node index.js xhr",
     "start:api": "node index.js api",
     "start:both": "node index.js normal & node index.js xhr",
     "start:all": "node index.js normal & node index.js xhr & node index.js api",
-    "compare": "node utils/comparison/collection-comparison.js",
     "init": "node init.js",
     "test": "jest",
     "scrape:puppeteer": "node src/scrapers/puppeteer/listing-scraper.js",
-    "scrape:cheerio": "node src/scrapers/cheerio/parser.js",
     "scrape:api": "node src/scrapers/official-api/official-api-scraper.js"
   },
   "dependencies": {

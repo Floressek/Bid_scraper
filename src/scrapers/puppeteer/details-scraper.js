@@ -3,14 +3,25 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const BaseScraper = require('../base/base-scraper');
 const config = require('../../utils/config/config');
 const {createLogger} = require('../../utils/logger/logger');
+const SCRAPER_TYPES = require('../../scrapers/base/scraper-types');
 
 const logger = createLogger(__filename);
 
 class DetailedScraperWorker extends BaseScraper {
     constructor() {
-        super('DETAILED_SCRAPER'); // używamy stałej z scraper-types.js
-        puppeteer.use(StealthPlugin());
-        this.initialized = false;
+        super(SCRAPER_TYPES.DETAILED);
+        // puppeteer.use(StealthPlugin());
+        this.db = null;
+    }
+
+    async initialize() {
+        // Upewnij się, że baza jest zainicjalizowana
+        if (!this.db) {
+            const db = require('../../utils/database/mongo');
+            await db.connect();
+            this.db = db;
+            logger.info('DetailedScraperWorker database initialized');
+        }
     }
 
     /**
@@ -21,7 +32,6 @@ class DetailedScraperWorker extends BaseScraper {
     isRelevantContent(content) {
         const relevantKeywords = [
             'licencj',  // złapie "licencja", "licencje", "licencyjny" itp.
-            'microsoft',
             'ms office',
             'office 365',
             'm365',
@@ -48,9 +58,11 @@ class DetailedScraperWorker extends BaseScraper {
         const lowerContent = content.toLowerCase();
 
         if (excludedKeywords.some(keyword => lowerContent.includes(keyword.toLowerCase()))) {
-            logger.info('Excluded keyword found in content:',
-                excludedKeywords.filter(keyword => lowerContent.includes(keyword.toLowerCase())));
-            return false;
+            const excluded = excludedKeywords.filter(keyword =>
+                lowerContent.includes(keyword.toLowerCase())
+            );
+            logger.info('Excluded keyword found in content:', excluded);
+            return {isRelevant: false, foundKeywords: [], excludedKeywords: excluded};
         }
 
         const foundKeywords = relevantKeywords.filter(keyword =>
@@ -59,64 +71,190 @@ class DetailedScraperWorker extends BaseScraper {
 
         if (foundKeywords.length > 0) {
             logger.info('Relevant keyword found in content:', foundKeywords);
-            return true;
+            return {isRelevant: true, foundKeywords, excludedKeywords: []};
         }
 
-        return false;
+        return {isRelevant: false, foundKeywords: [], excludedKeywords: []};
     }
 
     async processTenderDetails(tender) {
-        const browser = await puppeteer.launch(config.puppeteer.launch);
-        const page = await browser.newPage();
+        let browser = null;
+        let page = null;
 
         try {
             logger.info(`Processing tender details for: ${tender.number}`);
 
+            browser = await puppeteer.launch({
+                headless: false,
+                defaultViewport: null,
+                args: [
+                    '--start-maximized',
+                    '--no-sandbox'
+                ]
+            });
+
+            // Czekamy na ustabilizowanie przeglądarki
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            page = await browser.newPage();
+
+            // Dodaj style dla wizualizacji
+            await page.addStyleTag({
+                content: `
+                .scanning {
+                    background: rgba(255, 255, 0, 0.2) !important;
+                    border: 2px solid #4CAF50 !important;
+                    transition: all 0.3s ease-in-out;
+                }
+                .found-keyword {
+                    background: rgba(0, 255, 0, 0.2) !important;
+                    border: 2px solid #4CAF50 !important;
+                }
+                .scanning-indicator {
+                    position: fixed;
+                    top: 10px;
+                    right: 10px;
+                    background: #4CAF50;
+                    color: white;
+                    padding: 10px;
+                    border-radius: 5px;
+                    z-index: 9999;
+                }
+            `
+            });
+
             await page.goto(tender.link, {
-                waitUntil: 'networkidle2', // Wait until there are no more than 2 network connections for at least 500ms
-                timeout: 60000
+                waitUntil: 'networkidle2',
+                timeout: 80000
             });
 
-            // Extract tender details
-            const content = await page.evaluate(() => {
-                return document.body.innerText;
+            await page.waitForSelector('body', {visible: true});
+
+            // Znajdź sekcje i oznacz je dla wizualizacji
+            const sections = await page.evaluate(() => {
+                const indicator = document.createElement('div');
+                indicator.className = 'scanning-indicator';
+                indicator.textContent = 'Scanning for Microsoft licensing keywords...';
+                document.body.appendChild(indicator);
+
+                return Array.from(document.querySelectorAll('p, div, section'))
+                    .filter(el => {
+                        const hasText = el.textContent.trim().length > 5;
+                        if (hasText) {
+                            // Dodaj atrybut dla identyfikacji
+                            el.setAttribute('data-scannable', 'true');
+                        }
+                        return hasText;
+                    })
+                    .map((el, index) => ({
+                        text: el.textContent,
+                        html: el.innerHTML,
+                        tag: el.tagName,
+                        index
+                    }));
             });
 
-            if (this.isRelevantContent(content)) {
-                // Extract structured details
-                const details = await page.evaluate(() => {
-                    return {
-                        fullDescription: document.body.innerText,
-                        documents: Array.from(document.querySelectorAll('a[href*=".pdf"], a[href*=".doc"]'))
-                            .map(a => ({
-                                name: a.textContent.trim(),
-                                url: a.href,
-                                type: a.href.split('.').pop()
-                            }))
-                    };
+            logger.info(`Found ${sections.length} sections to scan`);
+
+            // Skanuj każdą sekcję
+            let foundAnyKeywords = false;
+            let allFoundKeywords = new Set();
+
+            for (const section of sections) {
+                // Podświetl aktualnie skanowaną sekcję
+                await page.evaluate((index) => {
+                    const elements = document.querySelectorAll('[data-scannable="true"]');
+                    const element = elements[index];
+                    if (element) {
+                        element.classList.add('scanning');
+                        element.scrollIntoView({behavior: 'smooth', block: 'center'});
+
+                        // Aktualizuj wskaźnik
+                        const indicator = document.querySelector('.scanning-indicator');
+                        if (indicator) {
+                            indicator.textContent = `Scanning section ${index + 1} of ${elements.length}...`;
+                        }
+                    }
+                }, section.index);
+
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                const {isRelevant, foundKeywords} = this.isRelevantContent(section.text);
+
+                if (isRelevant) {
+                    foundAnyKeywords = true;
+                    foundKeywords.forEach(k => allFoundKeywords.add(k));
+
+                    // Podświetl znalezione słowa kluczowe
+                    await page.evaluate((index, keywords) => {
+                        const elements = document.querySelectorAll('[data-scannable="true"]');
+                        const element = elements[index];
+                        if (element) {
+                            element.classList.add('found-keyword');
+
+                            const indicator = document.querySelector('.scanning-indicator');
+                            if (indicator) {
+                                indicator.style.background = '#4CAF50';
+                                indicator.textContent = `Found keywords: ${keywords.join(', ')}`;
+                            }
+                        }
+                    }, section.index, foundKeywords);
+                }
+
+                // Usuń podświetlenie skanowania
+                await page.evaluate((index) => {
+                    const elements = document.querySelectorAll('[data-scannable="true"]');
+                    const element = elements[index];
+                    if (element) {
+                        element.classList.remove('scanning');
+                    }
+                }, section.index);
+            }
+
+            // Pokaż końcowy rezultat
+            if (foundAnyKeywords) {
+                await this.db.saveTenderDetails({
+                    tenderId: tender.number,
+                    keywords: Array.from(allFoundKeywords),
+                    originalTender: tender,
+                    fullContent: sections.map(s => s.text).join('\n')
+                }, SCRAPER_TYPES.DETAILED);
+
+                await page.evaluate((keywords) => {
+                    const indicator = document.querySelector('.scanning-indicator');
+                    if (indicator) {
+                        indicator.style.background = '#4CAF50';
+                        indicator.textContent = `✓ Saved with keywords: ${keywords.join(', ')}`;
+                    }
+                }, Array.from(allFoundKeywords));
+
+                logger.info(`✓ Saved tender ${tender.number} with keywords: ${Array.from(allFoundKeywords).join(', ')}`);
+            } else {
+                await page.evaluate(() => {
+                    const indicator = document.querySelector('.scanning-indicator');
+                    if (indicator) {
+                        indicator.style.background = '#666';
+                        indicator.textContent = '✗ No relevant keywords found';
+                    }
                 });
 
-                await this.db.collection('tender_details').updateOne(
-                    {tenderId: tender.number},
-                    {
-                        $set: {
-                            ...details, // Add all details
-                            scrapedAt: new Date(),
-                            keywords: ['microsoft'], // FIXME: Change to the actual parameters
-                            originalTender: tender // Add original tender data
-                        }
-                    },
-                    {upsert: true} // Insert if not exists
-                );
-
-                logger.info(`Saved relevant details for tender: ${tender.number}`);
-            } else {
-                logger.info(`Tender ${tender.number} not relevant - skipping`);
+                logger.info(`✗ No relevant keywords found in tender ${tender.number}`);
             }
+
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
         } catch (error) {
-            logger.error(`Error processing tender ${tender.number}: ${error.message}`);
+            logger.error(`Error processing tender ${tender.number}:`, {
+                message: error.message,
+                stack: error.stack
+            });
         } finally {
-            await browser.close();
+            if (page && !page.isClosed()) {
+                await page.close().catch(e => logger.error('Error closing page:', e));
+            }
+            if (browser) {
+                await browser.close().catch(e => logger.error('Error closing browser:', e));
+            }
+            await new Promise(resolve => setTimeout(resolve, 2000));
         }
     }
 
@@ -133,32 +271,35 @@ class DetailedScraperWorker extends BaseScraper {
             }
 
             // Get unprocessed tenders
-            const unprocessedTenders = await this.db.collection('tender_listings')
-                .find({
-                    processed: false,
-                    scraperType: 'PUPPETEER'
-                })
-                .toArray();
-
+            const unprocessedTenders = await this.db.findUnprocessedListings();
             logger.info(`Found ${unprocessedTenders.length} unprocessed tenders`);
-            // Process each tender
-            for (const tender of unprocessedTenders) {
-                await this.processTenderDetails(tender);
 
-                // Mark tender as processed
-                await this.db.collection('tender_listings').updateOne(
-                    {_id: tender._id},
-                    {
-                        $set: {
-                            processed: true
-                        }
-                    }
-                );
-                // Small delay for visual effect
-                await new Promise(resolve => setTimeout(resolve, 300));
+            for (const tender of unprocessedTenders) {
+                try {
+                    await this.processTenderDetails(tender);
+                    // Mark tender as processed only if processing succeeded
+                    await this.db.markListingAsProcessed(tender._id);
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                } catch (tenderError) {
+                    logger.error(`Failed to process tender ${tender.number}:`, {
+                        message: tenderError.message,
+                        stack: tenderError.stack
+                    });
+                }
             }
+        } catch (error) {
+            logger.error('Critical error in startProcessing:', {
+                message: error.message,
+                stack: error.stack
+            });
+            throw error;  // Rzucamy błąd dalej
         } finally {
-            await this.db.disconnect();
+            try {
+                await this.db.disconnect();
+                logger.info('Database disconnected in details scraper');
+            } catch (dbError) {
+                logger.error('Error disconnecting from database:', dbError);
+            }
         }
     }
 }

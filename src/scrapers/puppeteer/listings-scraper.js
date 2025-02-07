@@ -273,13 +273,33 @@ class PuppeteerListingsScraper extends BaseScraper {
      * @param {Page} page - Puppeteer page instance
      */
     async cleanup(browser, page) {
-        if (page && !page.isClosed()) {
-            await page.close();
+        try {
+            if (page && !page.isClosed()) {
+                await page.close().catch(e =>
+                    logger.error('Error closing page:', e));
+            }
+
+            if (browser) {
+                try {
+                    const processes = browser.process();
+                    if (processes) {
+                        process.kill(processes.pid, 'SIGKILL');
+                    }
+                } catch (e) {
+                    logger.error('Error killing browser process:', e);
+                }
+
+                await browser.close().catch(e =>
+                    logger.error('Error closing browser:', e));
+            }
+        } catch (error) {
+            logger.error('Error in cleanup:', error);
+        } finally {
+            if (this.db) {
+                await this.db.disconnect().catch(e =>
+                    logger.error('Error disconnecting DB:', e));
+            }
         }
-        if (browser) {
-            await browser.close();
-        }
-        await this.db.disconnect();
     }
 }
 
