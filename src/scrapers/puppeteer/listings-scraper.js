@@ -101,8 +101,10 @@ class PuppeteerListingsScraper extends BaseScraper {
 
             logger.info('Waiting for search results...');
             await page.waitForSelector('lib-table', { timeout: 30000, visible: true });
-            // Extra wait for table update
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Extra wait for table update if scanning is enabled
+            if (config.scanning) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
             await page.waitForSelector('lib-table', { timeout: 30000, visible: true });
         }
     }
@@ -115,25 +117,27 @@ class PuppeteerListingsScraper extends BaseScraper {
      */
     async processPagination(page) {
         await page.waitForSelector('.pagination-container', { timeout: 30000 });
-        await page.addStyleTag({
-            content: `
-        .page-scanning {
-          border: 2px solid #4CAF50 !important;
-          position: relative;
+        if (config.scanning) {
+            await page.addStyleTag({
+                content: `
+                    .page-scanning {
+                        border: 2px solid #4CAF50 !important;
+                        position: relative;
+                    }
+                    .page-scanning::before {
+                        content: "Scanning...";
+                        position: fixed;
+                        top: 0;
+                        right: 0;
+                        background: #4CAF50;
+                        color: white;
+                        padding: 5px 10px;
+                        border-radius: 0 0 0 5px;
+                        z-index: 1000;
+                    }
+                `
+            });
         }
-        .page-scanning::before {
-          content: "Scanning...";
-          position: fixed;
-          top: 0;
-          right: 0;
-          background: #4CAF50;
-          color: white;
-          padding: 5px 10px;
-          border-radius: 0 0 0 5px;
-          z-index: 1000;
-        }
-      `
-        });
         const allTenders = [];
         let pageNumber = 1;
 
@@ -150,14 +154,18 @@ class PuppeteerListingsScraper extends BaseScraper {
                     );
                     logger.info(`======= Scanning Page ${pageNumber} =======`);
 
-                    // Visual cue for scanning
-                    await page.evaluate(() => {
-                        document.querySelector('lib-table')?.classList.add('page-scanning');
-                    });
+                    // Add visual cue if scanning is enabled
+                    if (config.scanning) {
+                        await page.evaluate(() => {
+                            document.querySelector('lib-table')?.classList.add('page-scanning');
+                        });
+                    }
                     const pageTenders = await this.scrapeCurrentPage(page);
-                    await page.evaluate(() => {
-                        document.querySelector('lib-table')?.classList.remove('page-scanning');
-                    });
+                    if (config.scanning) {
+                        await page.evaluate(() => {
+                            document.querySelector('lib-table')?.classList.remove('page-scanning');
+                        });
+                    }
 
                     if (pageTenders.length > 0) {
                         await this.saveListings(pageTenders);
@@ -184,7 +192,8 @@ class PuppeteerListingsScraper extends BaseScraper {
                             } else {
                                 await page.reload({ waitUntil: 'networkidle0' });
                             }
-                            await new Promise(r => setTimeout(r, 1000));
+                            // Use a shorter delay if scanning is off
+                            await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
                         } catch (reloadError) {
                             logger.error(`Reload failed on retry attempt ${retryCount} for page ${pageNumber}:`, reloadError);
                         }
@@ -195,7 +204,7 @@ class PuppeteerListingsScraper extends BaseScraper {
                 }
             }
 
-            // Abort if we couldn't recover after retries.
+            // If unsuccessful after retries, abort pagination
             if (!success) {
                 logger.error(`Failed to recover from TargetCloseError on page ${pageNumber} after ${maxRetries} attempts. Aborting pagination.`);
                 break;
@@ -205,7 +214,7 @@ class PuppeteerListingsScraper extends BaseScraper {
             const nextPageInfo = await this.checkNextPage(page);
             if (!nextPageInfo.exists || nextPageInfo.isDisabled) break;
 
-            // Capture current content to verify page change after navigation
+            // Capture current content for navigation verification
             const currentPageContent = await page.evaluate(() => document.querySelector('tbody')?.innerHTML || '');
             logger.info('Moving to next page...');
             await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
@@ -222,7 +231,7 @@ class PuppeteerListingsScraper extends BaseScraper {
                 logger.error(`Error during navigation on page ${pageNumber}:`, navError);
                 break;
             }
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
             pageNumber++;
         }
 
@@ -236,26 +245,33 @@ class PuppeteerListingsScraper extends BaseScraper {
      */
     async scrapeCurrentPage(page) {
         await page.waitForSelector('tbody tr', { timeout: 30000, visible: true });
-        await page.addStyleTag({
-            content: `
-        .scanning {
-          background-color: #f0f8ff !important;
-          transition: background-color 0.3s ease-in-out;
-          box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        if (config.scanning) {
+            await page.addStyleTag({
+                content: `
+                    .scanning {
+                        background-color: #f0f8ff !important;
+                        transition: background-color 0.3s ease-in-out;
+                        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                    }
+                `
+            });
         }
-      `
-        });
         const tenders = [];
         const rows = await page.$$('tbody tr');
+
+        // Use a delay value based on scanning mode
+        const delay = config.scanning ? 300 : 0;
 
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
 
-            // Highlight current row for visual effect
-            await page.evaluate((row) => {
-                row.classList.add('scanning');
-                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }, row);
+            // Highlight current row for visual effect if scanning is enabled
+            if (config.scanning) {
+                await page.evaluate((row) => {
+                    row.classList.add('scanning');
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, row);
+            }
 
             // Extract data from the row
             const tender = await page.evaluate(row => {
@@ -272,13 +288,17 @@ class PuppeteerListingsScraper extends BaseScraper {
             tenders.push(tender);
             logger.info(`Scanning tender: ${tender.title.substring(0, 50)}...`);
 
-            // Small delay for visual effect
-            await new Promise(resolve => setTimeout(resolve, 300));
+            // Delay for visual effect (if scanning is on)
+            if (delay) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
 
-            // Remove highlight
-            await page.evaluate((row) => {
-                row.classList.remove('scanning');
-            }, row);
+            // Remove highlight if scanning is enabled
+            if (config.scanning) {
+                await page.evaluate((row) => {
+                    row.classList.remove('scanning');
+                }, row);
+            }
         }
 
         return tenders;
