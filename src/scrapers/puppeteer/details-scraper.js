@@ -8,12 +8,18 @@ const OpenAI = require('openai');
 
 const logger = createLogger(__filename);
 
+const BrowserMode = {
+    LOCAL: 'local',
+    SERVER: 'server'
+}
+
 class DetailedScraperWorker extends BaseScraper {
     constructor() {
         super(SCRAPER_TYPES.DETAILED);
         this.db = null;
         this.browser = null;
         this.page = null;
+        puppeteer.use(StealthPlugin());
     }
 
     async initialize() {
@@ -30,8 +36,9 @@ class DetailedScraperWorker extends BaseScraper {
             await this.cleanup();
         }
 
-        puppeteer.use(StealthPlugin());
         this.browser = await puppeteer.launch({
+            product: 'chrome',
+            executablePath: process.env.CHROME_PATH || undefined,
             headless: false,
             defaultViewport: {
                 width: 1920,
@@ -186,7 +193,7 @@ class DetailedScraperWorker extends BaseScraper {
         await this.updateProgress(25, 'Preparing content...');
 
         const inputTokens = Math.ceil(content.length / 4);
-        const estimatedCost = (inputTokens * 0.00001) + (100 * 0.00003);
+        const estimatedCost = (inputTokens * 0.00000015) + (100 * 0.0000006);
 
         await this.updateProgress(50, 'Analyzing...', {
             input: inputTokens,
@@ -195,12 +202,29 @@ class DetailedScraperWorker extends BaseScraper {
         });
 
         try {
+            const systemPrompt = `Analyze tender for Microsoft software licensing keywords and key phrases. Find instances of these patterns:
+
+            1. Licensing: "licencj", "license", "licens", "microsoft volume", "volum", "software assurance", "subskrypcj", "subscription"
+            2. Products: "office 365", "microsoft 365", "m365", "windows server", "windows cal", "azure", "ms office", "office pro"
+            3. Programs: "enterprise agreement", "ea agreement", "open value", "microsoft csp", "cloud solution provider"
+
+            Return JSON:
+            {
+              "save": boolean (true if ≥2 relevant matches & no exclusions),
+              "message": string (reasoning),
+              "foundKeywords": array (matched terms),
+              "exactMatches": object (term:count pairs)
+            }
+            
+            Exclude if contains: edge, surface, xbox, hardware.
+            For save=true, tender must clearly relate to Microsoft software/cloud licensing (not just generic IT/software mentions).`;
+
             const response = await openai.chat.completions.create({
                 model: "gpt-4o-mini",
                 messages: [
                     {
                         role: "system",
-                        content: "Analyze tender content for Microsoft-related keywords. Required: at least 2 keywords from (licencj, ms office, office 365, m365, windows server, windows cal, microsoft 365, azure, software assurance, enterprise agreement, open value, cloud solution provider, microsoft volume licensing). Exclude if contains: microsoft edge, edge browser, surface, xbox. Return JSON with save (bool), message (string), foundKeywords (array), exactMatches (object)."
+                        content: systemPrompt
                     },
                     {role: "user", content}
                 ],
