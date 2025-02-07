@@ -196,7 +196,7 @@ class DetailedScraperWorker extends BaseScraper {
 
         try {
             const response = await openai.chat.completions.create({
-                model: "gpt-4",
+                model: "gpt-4o-mini",
                 messages: [
                     {
                         role: "system",
@@ -211,7 +211,7 @@ class DetailedScraperWorker extends BaseScraper {
             await this.updateProgress(100, 'Analysis complete', {
                 input: response.usage.prompt_tokens,
                 output: response.usage.completion_tokens,
-                cost: (response.usage.prompt_tokens * 0.00001) + (response.usage.completion_tokens * 0.00003)
+                cost: (response.usage.prompt_tokens * 0.00000015) + (response.usage.completion_tokens * 0.0000006)
             });
 
             return result;
