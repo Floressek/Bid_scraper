@@ -39,7 +39,7 @@ class DetailedScraperWorker extends BaseScraper {
         this.browser = await puppeteer.launch({
             product: 'chrome',
             executablePath: process.env.CHROME_PATH || undefined,
-            headless: false,
+            headless: true,
             defaultViewport: {
                 width: 1920,
                 height: 1080

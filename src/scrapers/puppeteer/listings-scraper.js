@@ -82,7 +82,8 @@ class PuppeteerListingsScraper extends BaseScraper {
             waitUntil: 'networkidle2',
             timeout: 60000
         });
-        if (!response.ok()) {
+        // Allow 304 (Not Modified) responses as acceptable
+        if (response.status() !== 304 && !response.ok()) {
             throw new Error(`Page load failed with status: ${response.status()}`);
         }
 
@@ -108,6 +109,7 @@ class PuppeteerListingsScraper extends BaseScraper {
             await page.waitForSelector('lib-table', { timeout: 30000, visible: true });
         }
     }
+
 
     /**
      * Process pagination and scrape tender data.
@@ -204,11 +206,49 @@ class PuppeteerListingsScraper extends BaseScraper {
                 }
             }
 
-            // If unsuccessful after retries, abort pagination
+            // In your relaunch block:
             if (!success) {
-                logger.error(`Failed to recover from TargetCloseError on page ${pageNumber} after ${maxRetries} attempts. Aborting pagination.`);
-                break;
+                logger.error(`Failed to recover from TargetCloseError on page ${pageNumber} after ${maxRetries} attempts. Relaunching browser to resume...`);
+
+                // Clean up the current browser/page.
+                await this.cleanup(this.browser, page);
+
+                // Relaunch browser and open a new page.
+                this.browser = await puppeteer.launch({
+                    ...config.puppeteer.launch,
+                    args: [
+                        ...config.puppeteer.launch.args,
+                        '--disable-web-security',
+                        '--disable-features=IsolateOrigins,site-per-process'
+                    ]
+                });
+                page = await this.browser.newPage();
+                await this.setupBrowser(page);
+
+                // Navigate to base URL and wait for a key selector so the main frame is ready.
+                await page.goto(config.baseUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+                // Wait for a known selector (for example, the search input) to be present.
+                await page.waitForSelector(config.selectors.searchInput, { timeout: 60000 });
+                // Optionally, add an extra delay.
+                await new Promise(r => setTimeout(r, 2000));
+
+                // Now run the search initialization.
+                await this.navigateAndSearch(page, 'microsoft');
+
+                // Replay "next page" clicks until reaching the last successful page.
+                for (let i = 1; i < pageNumber; i++) {
+                    const nextPageInfo = await this.checkNextPage(page);
+                    if (!nextPageInfo.exists || nextPageInfo.isDisabled) {
+                        logger.error(`Cannot advance to page ${pageNumber} from relaunch; next page button missing or disabled.`);
+                        break;
+                    }
+                    await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
+                    await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
+                }
+                // Continue the outer loop to try scanning the current page again.
+                continue;
             }
+
 
             // Check for next page
             const nextPageInfo = await this.checkNextPage(page);
