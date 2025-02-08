@@ -122,148 +122,157 @@ class PuppeteerListingsScraper extends BaseScraper {
     //     if (config.scanning) {
     //         await page.addStyleTag({
     //             content: `
-    //             .page-scanning {
-    //                 border: 2px solid #4CAF50 !important;
-    //                 position: relative;
-    //             }
-    //             .page-scanning::before {
-    //                 content: "Scanning...";
-    //                 position: fixed;
-    //                 top: 0;
-    //                 right: 0;
-    //                 background: #4CAF50;
-    //                 color: white;
-    //                 padding: 5px 10px;
-    //                 border-radius: 0 0 0 5px;
-    //                 z-index: 1000;
-    //             }
-    //         `
+    //                 .page-scanning {
+    //                     border: 2px solid #4CAF50 !important;
+    //                     position: relative;
+    //                 }
+    //                 .page-scanning::before {
+    //                     content: "Scanning...";
+    //                     position: fixed;
+    //                     top: 0;
+    //                     right: 0;
+    //                     background: #4CAF50;
+    //                     color: white;
+    //                     padding: 5px 10px;
+    //                     border-radius: 0 0 0 5px;
+    //                     z-index: 1000;
+    //                 }
+    //             `
     //         });
     //     }
     //     const allTenders = [];
     //     let pageNumber = 1;
     //
     //     while (pageNumber <= 1000) {
-    //         try {
-    //             // Every 5 pages, completely relaunch browser to prevent memory issues
-    //             if (pageNumber % 5 === 0) {
-    //                 logger.info('Performing preventive browser relaunch...');
+    //         let retryCount = 0;
+    //         const maxRetries = 3;
+    //         let success = false;
     //
-    //                 // Store current browser and page
-    //                 const oldBrowser = this.browser;
-    //                 const oldPage = page;
-    //
-    //                 // Launch new browser and page
-    //                 this.browser = await puppeteer.launch({
-    //                     ...config.puppeteer.launch,
-    //                     args: [
-    //                         ...config.puppeteer.launch.args,
-    //                         '--disable-web-security',
-    //                         '--disable-features=IsolateOrigins,site-per-process'
-    //                     ]
-    //                 });
-    //                 page = await this.browser.newPage();
-    //                 await this.setupBrowser(page);
-    //
-    //                 // Navigate back to current page
-    //                 await page.goto(config.baseUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-    //                 await this.navigateAndSearch(page, 'microsoft');
-    //
-    //                 // Navigate to current page number
-    //                 for (let i = 1; i < pageNumber; i++) {
-    //                     await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
-    //                     await new Promise(r => setTimeout(r, 1000));
-    //                 }
-    //
-    //                 // Wait for page to stabilize
-    //                 await new Promise(r => setTimeout(r, 2000));
-    //
-    //                 // Clean up old browser AFTER new one is ready
-    //                 await this.cleanup(oldBrowser, oldPage);
-    //             }
-    //
-    //             await page.waitForFunction(
-    //                 () => document.querySelectorAll('tbody tr').length > 0,
-    //                 { timeout: 10000 }
-    //             );
-    //             logger.info(`======= Scanning Page ${pageNumber} =======`);
-    //
-    //             if (config.scanning) {
-    //                 await page.evaluate(() => {
-    //                     document.querySelector('lib-table')?.classList.add('page-scanning');
-    //                 });
-    //             }
-    //
-    //             const pageTenders = await this.scrapeCurrentPage(page);
-    //
-    //             if (config.scanning) {
-    //                 await page.evaluate(() => {
-    //                     document.querySelector('lib-table')?.classList.remove('page-scanning');
-    //                 });
-    //             }
-    //
-    //             if (pageTenders.length > 0) {
-    //                 await this.saveListings(pageTenders);
-    //                 allTenders.push(...pageTenders);
-    //                 logger.info(`✓ Page ${pageNumber} completed - Found ${pageTenders.length} tenders`);
-    //                 logger.info(`Total tenders collected: ${allTenders.length}`);
-    //             }
-    //
-    //             // Check for next page
-    //             const nextPageInfo = await this.checkNextPage(page);
-    //             if (!nextPageInfo.exists || nextPageInfo.isDisabled) break;
-    //
-    //             // Navigate to next page
-    //             await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
-    //             await new Promise(r => setTimeout(r, 1000));
-    //             pageNumber++;
-    //
-    //         } catch (error) {
-    //             logger.error(`Error on page ${pageNumber}:`, error);
-    //
-    //             // If browser crash, relaunch and return to current page
+    //         while (retryCount < maxRetries && !success) {
     //             try {
-    //                 logger.info('Attempting browser relaunch after error...');
+    //                 await page.waitForFunction(
+    //                     () => document.querySelectorAll('tbody tr').length > 0,
+    //                     { timeout: 10000 }
+    //                 );
+    //                 logger.info(`======= Scanning Page ${pageNumber} =======`);
     //
-    //                 // Store current browser and page
-    //                 const oldBrowser = this.browser;
-    //                 const oldPage = page;
-    //
-    //                 // Launch new browser and page
-    //                 this.browser = await puppeteer.launch({
-    //                     ...config.puppeteer.launch,
-    //                     args: [
-    //                         ...config.puppeteer.launch.args,
-    //                         '--disable-web-security',
-    //                         '--disable-features=IsolateOrigins,site-per-process'
-    //                     ]
-    //                 });
-    //                 page = await this.browser.newPage();
-    //                 await this.setupBrowser(page);
-    //
-    //                 // Navigate back to current page
-    //                 await page.goto(config.baseUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-    //                 await this.navigateAndSearch(page, 'microsoft');
-    //
-    //                 // Navigate to current page number
-    //                 for (let i = 1; i < pageNumber; i++) {
-    //                     await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
-    //                     await new Promise(r => setTimeout(r, 1000));
+    //                 // Add visual cue if scanning is enabled
+    //                 if (config.scanning) {
+    //                     await page.evaluate(() => {
+    //                         document.querySelector('lib-table')?.classList.add('page-scanning');
+    //                     });
+    //                 }
+    //                 const pageTenders = await this.scrapeCurrentPage(page);
+    //                 if (config.scanning) {
+    //                     await page.evaluate(() => {
+    //                         document.querySelector('lib-table')?.classList.remove('page-scanning');
+    //                     });
     //                 }
     //
-    //                 // Wait for page to stabilize
-    //                 await new Promise(r => setTimeout(r, 2000));
-    //
-    //                 // Clean up old browser AFTER new one is ready
-    //                 await this.cleanup(oldBrowser, oldPage);
-    //
-    //                 // Continue with the same page number
-    //                 continue;
-    //             } catch (relanchError) {
-    //                 logger.error('Failed to relaunch browser:', relanchError);
-    //                 throw relanchError;
+    //                 if (pageTenders.length > 0) {
+    //                     await this.saveListings(pageTenders);
+    //                     allTenders.push(...pageTenders);
+    //                     logger.info(`✓ Page ${pageNumber} completed - Found ${pageTenders.length} tenders`);
+    //                     logger.info(`Total tenders collected: ${allTenders.length}`);
+    //                 }
+    //                 success = true;
+    //             } catch (error) {
+    //                 if (error.name === 'TargetCloseError') {
+    //                     retryCount++;
+    //                     logger.warn(`TargetCloseError on page ${pageNumber}. Retry attempt ${retryCount}/${maxRetries}...`);
+    //                     try {
+    //                         // If the page is closed, create a new page and reinitialize
+    //                         if (page.isClosed()) {
+    //                             logger.info('Page is closed. Opening a new page...');
+    //                             page = await this.browser.newPage();
+    //                             await this.setupBrowser(page);
+    //                             await page.goto(config.baseUrl, {
+    //                                 waitUntil: 'networkidle2',
+    //                                 timeout: 60000
+    //                             });
+    //                             await this.navigateAndSearch(page, 'microsoft');
+    //                         } else {
+    //                             await page.reload({ waitUntil: 'networkidle0' });
+    //                         }
+    //                         // Use a shorter delay if scanning is off
+    //                         await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
+    //                     } catch (reloadError) {
+    //                         logger.error(`Reload failed on retry attempt ${retryCount} for page ${pageNumber}:`, reloadError);
+    //                     }
+    //                 } else {
+    //                     logger.error(`Error scanning page ${pageNumber}:`, error);
+    //                     break;
+    //                 }
     //             }
     //         }
+    //
+    //         // In your relaunch block:
+    //         if (!success) {
+    //             logger.error(`Failed to recover from TargetCloseError on page ${pageNumber} after ${maxRetries} attempts. Relaunching browser to resume...`);
+    //
+    //             // Clean up the current browser/page.
+    //             await this.cleanup(this.browser, page);
+    //
+    //             // Relaunch browser and open a new page.
+    //             this.browser = await puppeteer.launch({
+    //                 ...config.puppeteer.launch,
+    //                 args: [
+    //                     ...config.puppeteer.launch.args,
+    //                     '--disable-web-security',
+    //                     '--disable-features=IsolateOrigins,site-per-process'
+    //                 ]
+    //             });
+    //             page = await this.browser.newPage();
+    //             await this.setupBrowser(page);
+    //
+    //             // Navigate to base URL and wait for a key selector so the main frame is ready.
+    //             await page.goto(config.baseUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+    //             // Wait for a known selector (for example, the search input) to be present.
+    //             await page.waitForSelector(config.selectors.searchInput, { timeout: 60000 });
+    //             // Optionally, add an extra delay.
+    //             await new Promise(r => setTimeout(r, 2000));
+    //
+    //             // Now run the search initialization.
+    //             await this.navigateAndSearch(page, 'microsoft');
+    //
+    //             // Replay "next page" clicks until reaching the last successful page.
+    //             for (let i = 1; i < pageNumber; i++) {
+    //                 const nextPageInfo = await this.checkNextPage(page);
+    //                 if (!nextPageInfo.exists || nextPageInfo.isDisabled) {
+    //                     logger.error(`Cannot advance to page ${pageNumber} from relaunch; next page button missing or disabled.`);
+    //                     break;
+    //                 }
+    //                 await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
+    //                 await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
+    //             }
+    //             // Continue the outer loop to try scanning the current page again.
+    //             continue;
+    //         }
+    //
+    //
+    //         // Check for next page
+    //         const nextPageInfo = await this.checkNextPage(page);
+    //         if (!nextPageInfo.exists || nextPageInfo.isDisabled) break;
+    //
+    //         // Capture current content for navigation verification
+    //         const currentPageContent = await page.evaluate(() => document.querySelector('tbody')?.innerHTML || '');
+    //         logger.info('Moving to next page...');
+    //         await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
+    //         try {
+    //             await page.waitForFunction(
+    //                 oldContent => {
+    //                     const newContent = document.querySelector('tbody')?.innerHTML || '';
+    //                     return newContent !== oldContent && document.querySelectorAll('tbody tr').length > 0;
+    //                 },
+    //                 { timeout: 5000 },
+    //                 currentPageContent
+    //             );
+    //         } catch (navError) {
+    //             logger.error(`Error during navigation on page ${pageNumber}:`, navError);
+    //             break;
+    //         }
+    //         await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
+    //         pageNumber++;
     //     }
     //
     //     return allTenders;
@@ -272,15 +281,16 @@ class PuppeteerListingsScraper extends BaseScraper {
         await page.waitForSelector('.pagination-container', { timeout: 30000 });
         const allTenders = [];
         let pageNumber = 1;
+        let consecutiveErrors = 0;
+        const MAX_CONSECUTIVE_ERRORS = 3;
 
         while (pageNumber <= 1000) {
             try {
-                // Every 5 pages, do a preventive relaunch
-                if (pageNumber % 5 === 0) {
-                    logger.info('Performing preventive browser relaunch...');
-                    page = await this.relauncher(pageNumber);
-                }
-
+                // Wait for table content
+                await page.waitForFunction(
+                    () => document.querySelectorAll('tbody tr').length > 0,
+                    { timeout: 10000 }
+                );
                 logger.info(`======= Scanning Page ${pageNumber} =======`);
 
                 // Scrape current page
@@ -291,6 +301,7 @@ class PuppeteerListingsScraper extends BaseScraper {
                     allTenders.push(...pageTenders);
                     logger.info(`✓ Page ${pageNumber} completed - Found ${pageTenders.length} tenders`);
                     logger.info(`Total tenders collected: ${allTenders.length}`);
+                    consecutiveErrors = 0; // Reset error counter on success
                 }
 
                 // Check for next page
@@ -298,29 +309,87 @@ class PuppeteerListingsScraper extends BaseScraper {
                 if (!nextPageInfo.exists || nextPageInfo.isDisabled) break;
 
                 // Navigate to next page
+                const currentPageContent = await page.evaluate(() => document.querySelector('tbody')?.innerHTML || '');
                 await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
-                await page.waitForFunction(
-                    () => document.querySelectorAll('tbody tr').length > 0,
-                    { timeout: 10000 }
-                );
-
-                pageNumber++;
-            } catch (error) {
-                logger.error(`Error on page ${pageNumber}:`, error);
 
                 try {
-                    // On error, relaunch browser and try the same page again
-                    page = await this.relauncher(pageNumber);
-                    // Don't increment pageNumber - we'll retry the same page
-                } catch (relaunchError) {
-                    logger.error('Critical error during browser relaunch:', relaunchError);
-                    throw relaunchError; // If we can't relaunch, we need to stop
+                    await page.waitForFunction(
+                        oldContent => {
+                            const newContent = document.querySelector('tbody')?.innerHTML || '';
+                            return newContent !== oldContent && document.querySelectorAll('tbody tr').length > 0;
+                        },
+                        { timeout: 5000 },
+                        currentPageContent
+                    );
+                } catch (navError) {
+                    throw new Error(`Navigation failed: ${navError.message}`);
                 }
+
+                await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
+                pageNumber++;
+
+            } catch (error) {
+                consecutiveErrors++;
+                logger.error(`Error on page ${pageNumber}:`, error);
+                console.log(`Error on page ${pageNumber}:`, error);
+
+                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                    logger.info('Maximum consecutive errors reached. Relaunching browser...');
+
+                    // Clean up existing browser
+                    await this.cleanup(this.browser, page);
+
+                    // Launch fresh browser
+                    this.browser = await puppeteer.launch({
+                        ...config.puppeteer.launch,
+                        args: [
+                            ...config.puppeteer.launch.args,
+                            '--disable-web-security',
+                            '--disable-features=IsolateOrigins,site-per-process'
+                        ]
+                    });
+
+                    // Create new page and set up
+                    page = await this.browser.newPage();
+                    await this.setupBrowser(page);
+
+                    // Navigate back to where we were
+                    await page.goto(config.baseUrl, {
+                        waitUntil: 'networkidle2',
+                        timeout: 60000
+                    });
+
+                    await this.navigateAndSearch(page, 'microsoft');
+
+                    // Navigate to the last successful page
+                    for (let i = 1; i < pageNumber; i++) {
+                        logger.info(`Recovering pagination - navigating to page ${i}`);
+                        const nextPageInfo = await this.checkNextPage(page);
+                        if (!nextPageInfo.exists || nextPageInfo.isDisabled) {
+                            logger.error('Cannot recover pagination - next page button not available');
+                            break;
+                        }
+                        await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
+                        await page.waitForFunction(
+                            () => document.querySelectorAll('tbody tr').length > 0,
+                            { timeout: 10000 }
+                        );
+                        await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
+                    }
+
+                    consecutiveErrors = 0; // Reset error counter after recovery
+                    continue; // Retry current page with fresh browser
+                }
+
+                // If we haven't hit max errors, wait briefly and retry
+                await new Promise(r => setTimeout(r, 5000));
+                continue;
             }
         }
 
         return allTenders;
     }
+
     /**
      * Scrape data from the current page.
      * @param {Page} page - Puppeteer page instance.
@@ -407,62 +476,6 @@ class PuppeteerListingsScraper extends BaseScraper {
         };
     }
 
-    async cleanupBrowser() {
-        try {
-            // Force kill any existing browser processes
-            if (this.browser) {
-                const processes = await this.browser.process().kill('SIGKILL');
-                await this.browser.close().catch(() => {});
-                this.browser = null;
-            }
-        } catch (error) {
-            logger.warn('Error during browser cleanup:', error);
-        }
-    }
-
-    async relauncher(currentPage) {
-        logger.info('Relaunching browser...');
-
-        // First, clean up old browser
-        await this.cleanupBrowser();
-
-        // Wait a moment to ensure cleanup is complete
-        await new Promise(r => setTimeout(r, 3000));
-
-        // Launch new browser
-        this.browser = await puppeteer.launch({
-            ...config.puppeteer.launch,
-            args: [
-                ...config.puppeteer.launch.args,
-                '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process'
-            ]
-        });
-
-        // Create and set up new page
-        const page = await this.browser.newPage();
-        await this.setupBrowser(page);
-
-        // Navigate directly to the search results page
-        await this.navigateAndSearch(page, 'microsoft');
-
-        // Navigate to target page
-        if (currentPage > 1) {
-            for (let i = 1; i < currentPage; i++) {
-                await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
-                // Add a small delay between clicks
-                await new Promise(r => setTimeout(r, 500));
-            }
-            // Wait for last navigation to complete
-            await page.waitForFunction(
-                () => document.querySelectorAll('tbody tr').length > 0,
-                { timeout: 10000 }
-            );
-        }
-
-        return page;
-    }
-
     /**
      * Cleanup resources.
      * @param {Browser} browser - Puppeteer browser instance.
@@ -483,13 +496,13 @@ class PuppeteerListingsScraper extends BaseScraper {
                 logger.error('Error closing browser:', error);
             }
         }
-        if (this.db) {
-            try {
-                await this.db.disconnect();
-            } catch (error) {
-                logger.error('Error disconnecting DB:', error);
-            }
-        }
+        // if (this.db) {
+        //     try {
+        //         await this.db.disconnect();
+        //     } catch (error) {
+        //         logger.error('Error disconnecting DB:', error);
+        //     }
+        // }
     }
 }
 
