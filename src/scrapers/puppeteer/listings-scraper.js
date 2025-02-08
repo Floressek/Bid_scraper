@@ -1,9 +1,9 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const BaseScraper = require('../base/base-scraper');
-const { getRandomUserAgent } = require('../../utils/helpers/browser-helpers');
+const {getRandomUserAgent} = require('../../utils/helpers/browser-helpers');
 const config = require('../../utils/config/config');
-const { createLogger } = require('../../utils/logger/logger');
+const {createLogger} = require('../../utils/logger/logger');
 
 const logger = createLogger(__filename);
 
@@ -60,7 +60,7 @@ class PuppeteerListingsScraper extends BaseScraper {
      */
     async setupBrowser(page) {
         page.on('error', err => logger.error('Page error:', JSON.stringify(err, null, 2)));
-        await page.setViewport({ width: 1920, height: 1080 });
+        await page.setViewport({width: 1920, height: 1080});
         await page.setExtraHTTPHeaders({
             'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -92,7 +92,7 @@ class PuppeteerListingsScraper extends BaseScraper {
                 timeout: 30000,
                 visible: true
             });
-            await inputElement.type(keyword, { delay: 100 });
+            await inputElement.type(keyword, {delay: 100});
             logger.info('Clicking search button...');
             await page.waitForSelector('.app-button.btn.btn-secondary.btn-block', {
                 visible: true,
@@ -101,12 +101,12 @@ class PuppeteerListingsScraper extends BaseScraper {
             await page.click('.app-button.btn.btn-secondary.btn-block');
 
             logger.info('Waiting for search results...');
-            await page.waitForSelector('lib-table', { timeout: 30000, visible: true });
+            await page.waitForSelector('lib-table', {timeout: 30000, visible: true});
             // Extra wait for table update if scanning is enabled
             if (config.scanning) {
                 await new Promise(resolve => setTimeout(resolve, 2000));
             }
-            await page.waitForSelector('lib-table', { timeout: 30000, visible: true });
+            await page.waitForSelector('lib-table', {timeout: 30000, visible: true});
         }
     }
 
@@ -119,227 +119,241 @@ class PuppeteerListingsScraper extends BaseScraper {
      */
     // async processPagination(page) {
     //     await page.waitForSelector('.pagination-container', { timeout: 30000 });
-    //     if (config.scanning) {
-    //         await page.addStyleTag({
-    //             content: `
-    //                 .page-scanning {
-    //                     border: 2px solid #4CAF50 !important;
-    //                     position: relative;
-    //                 }
-    //                 .page-scanning::before {
-    //                     content: "Scanning...";
-    //                     position: fixed;
-    //                     top: 0;
-    //                     right: 0;
-    //                     background: #4CAF50;
-    //                     color: white;
-    //                     padding: 5px 10px;
-    //                     border-radius: 0 0 0 5px;
-    //                     z-index: 1000;
-    //                 }
-    //             `
-    //         });
-    //     }
     //     const allTenders = [];
     //     let pageNumber = 1;
+    //     let consecutiveErrors = 0;
+    //     const MAX_CONSECUTIVE_ERRORS = 3;
     //
     //     while (pageNumber <= 1000) {
-    //         let retryCount = 0;
-    //         const maxRetries = 3;
-    //         let success = false;
+    //         try {
+    //             // Wait for table content
+    //             await page.waitForFunction(
+    //                 () => document.querySelectorAll('tbody tr').length > 0,
+    //                 { timeout: 10000 }
+    //             );
+    //             logger.info(`======= Scanning Page ${pageNumber} =======`);
     //
-    //         while (retryCount < maxRetries && !success) {
+    //             // Scrape current page
+    //             const pageTenders = await this.scrapeCurrentPage(page);
+    //
+    //             if (pageTenders.length > 0) {
+    //                 await this.saveListings(pageTenders);
+    //                 allTenders.push(...pageTenders);
+    //                 logger.info(`✓ Page ${pageNumber} completed - Found ${pageTenders.length} tenders`);
+    //                 logger.info(`Total tenders collected: ${allTenders.length}`);
+    //                 consecutiveErrors = 0; // Reset error counter on success
+    //             }
+    //
+    //             // Check for next page
+    //             const nextPageInfo = await this.checkNextPage(page);
+    //             if (!nextPageInfo.exists || nextPageInfo.isDisabled) break;
+    //
+    //             // Navigate to next page
+    //             const currentPageContent = await page.evaluate(() => document.querySelector('tbody')?.innerHTML || '');
+    //             await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
+    //
     //             try {
     //                 await page.waitForFunction(
-    //                     () => document.querySelectorAll('tbody tr').length > 0,
-    //                     { timeout: 10000 }
+    //                     oldContent => {
+    //                         const newContent = document.querySelector('tbody')?.innerHTML || '';
+    //                         return newContent !== oldContent && document.querySelectorAll('tbody tr').length > 0;
+    //                     },
+    //                     { timeout: 5000 },
+    //                     currentPageContent
     //                 );
-    //                 logger.info(`======= Scanning Page ${pageNumber} =======`);
+    //             } catch (navError) {
+    //                 throw new Error(`Navigation failed: ${navError.message}`);
+    //             }
     //
-    //                 // Add visual cue if scanning is enabled
-    //                 if (config.scanning) {
-    //                     await page.evaluate(() => {
-    //                         document.querySelector('lib-table')?.classList.add('page-scanning');
-    //                     });
-    //                 }
-    //                 const pageTenders = await this.scrapeCurrentPage(page);
-    //                 if (config.scanning) {
-    //                     await page.evaluate(() => {
-    //                         document.querySelector('lib-table')?.classList.remove('page-scanning');
-    //                     });
-    //                 }
+    //             await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
+    //             pageNumber++;
     //
-    //                 if (pageTenders.length > 0) {
-    //                     await this.saveListings(pageTenders);
-    //                     allTenders.push(...pageTenders);
-    //                     logger.info(`✓ Page ${pageNumber} completed - Found ${pageTenders.length} tenders`);
-    //                     logger.info(`Total tenders collected: ${allTenders.length}`);
-    //                 }
-    //                 success = true;
-    //             } catch (error) {
-    //                 if (error.name === 'TargetCloseError') {
-    //                     retryCount++;
-    //                     logger.warn(`TargetCloseError on page ${pageNumber}. Retry attempt ${retryCount}/${maxRetries}...`);
-    //                     try {
-    //                         // If the page is closed, create a new page and reinitialize
-    //                         if (page.isClosed()) {
-    //                             logger.info('Page is closed. Opening a new page...');
-    //                             page = await this.browser.newPage();
-    //                             await this.setupBrowser(page);
-    //                             await page.goto(config.baseUrl, {
-    //                                 waitUntil: 'networkidle2',
-    //                                 timeout: 60000
-    //                             });
-    //                             await this.navigateAndSearch(page, 'microsoft');
-    //                         } else {
-    //                             await page.reload({ waitUntil: 'networkidle0' });
-    //                         }
-    //                         // Use a shorter delay if scanning is off
-    //                         await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
-    //                     } catch (reloadError) {
-    //                         logger.error(`Reload failed on retry attempt ${retryCount} for page ${pageNumber}:`, reloadError);
+    //         } catch (error) {
+    //             consecutiveErrors++;
+    //             logger.error(`Error on page ${pageNumber}:`, error);
+    //             console.log(`Error on page ${pageNumber}:`, error);
+    //
+    //             if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+    //                 logger.info('Maximum consecutive errors reached. Relaunching browser...');
+    //
+    //                 // Clean up existing browser
+    //                 await this.cleanup(this.browser, page);
+    //
+    //                 // Launch fresh browser
+    //                 this.browser = await puppeteer.launch({
+    //                     ...config.puppeteer.launch,
+    //                     args: [
+    //                         ...config.puppeteer.launch.args,
+    //                         '--disable-web-security',
+    //                         '--disable-features=IsolateOrigins,site-per-process'
+    //                     ]
+    //                 });
+    //
+    //                 // Create new page and set up
+    //                 page = await this.browser.newPage();
+    //                 await this.setupBrowser(page);
+    //
+    //                 // Navigate back to where we were
+    //                 await page.goto(config.baseUrl, {
+    //                     waitUntil: 'networkidle2',
+    //                     timeout: 60000
+    //                 });
+    //
+    //                 await this.navigateAndSearch(page, 'microsoft');
+    //
+    //                 // Navigate to the last successful page
+    //                 for (let i = 1; i < pageNumber; i++) {
+    //                     logger.info(`Recovering pagination - navigating to page ${i}`);
+    //                     const nextPageInfo = await this.checkNextPage(page);
+    //                     if (!nextPageInfo.exists || nextPageInfo.isDisabled) {
+    //                         logger.error('Cannot recover pagination - next page button not available');
+    //                         break;
     //                     }
-    //                 } else {
-    //                     logger.error(`Error scanning page ${pageNumber}:`, error);
-    //                     break;
+    //                     await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
+    //                     await page.waitForFunction(
+    //                         () => document.querySelectorAll('tbody tr').length > 0,
+    //                         { timeout: 10000 }
+    //                     );
+    //                     await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
     //                 }
+    //
+    //                 consecutiveErrors = 0; // Reset error counter after recovery
+    //                 continue; // Retry current page with fresh browser
     //             }
-    //         }
     //
-    //         // In your relaunch block:
-    //         if (!success) {
-    //             logger.error(`Failed to recover from TargetCloseError on page ${pageNumber} after ${maxRetries} attempts. Relaunching browser to resume...`);
-    //
-    //             // Clean up the current browser/page.
-    //             await this.cleanup(this.browser, page);
-    //
-    //             // Relaunch browser and open a new page.
-    //             this.browser = await puppeteer.launch({
-    //                 ...config.puppeteer.launch,
-    //                 args: [
-    //                     ...config.puppeteer.launch.args,
-    //                     '--disable-web-security',
-    //                     '--disable-features=IsolateOrigins,site-per-process'
-    //                 ]
-    //             });
-    //             page = await this.browser.newPage();
-    //             await this.setupBrowser(page);
-    //
-    //             // Navigate to base URL and wait for a key selector so the main frame is ready.
-    //             await page.goto(config.baseUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-    //             // Wait for a known selector (for example, the search input) to be present.
-    //             await page.waitForSelector(config.selectors.searchInput, { timeout: 60000 });
-    //             // Optionally, add an extra delay.
-    //             await new Promise(r => setTimeout(r, 2000));
-    //
-    //             // Now run the search initialization.
-    //             await this.navigateAndSearch(page, 'microsoft');
-    //
-    //             // Replay "next page" clicks until reaching the last successful page.
-    //             for (let i = 1; i < pageNumber; i++) {
-    //                 const nextPageInfo = await this.checkNextPage(page);
-    //                 if (!nextPageInfo.exists || nextPageInfo.isDisabled) {
-    //                     logger.error(`Cannot advance to page ${pageNumber} from relaunch; next page button missing or disabled.`);
-    //                     break;
-    //                 }
-    //                 await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
-    //                 await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
-    //             }
-    //             // Continue the outer loop to try scanning the current page again.
+    //             // If we haven't hit max errors, wait briefly and retry
+    //             await new Promise(r => setTimeout(r, 5000));
     //             continue;
     //         }
-    //
-    //
-    //         // Check for next page
-    //         const nextPageInfo = await this.checkNextPage(page);
-    //         if (!nextPageInfo.exists || nextPageInfo.isDisabled) break;
-    //
-    //         // Capture current content for navigation verification
-    //         const currentPageContent = await page.evaluate(() => document.querySelector('tbody')?.innerHTML || '');
-    //         logger.info('Moving to next page...');
-    //         await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
-    //         try {
-    //             await page.waitForFunction(
-    //                 oldContent => {
-    //                     const newContent = document.querySelector('tbody')?.innerHTML || '';
-    //                     return newContent !== oldContent && document.querySelectorAll('tbody tr').length > 0;
-    //                 },
-    //                 { timeout: 5000 },
-    //                 currentPageContent
-    //             );
-    //         } catch (navError) {
-    //             logger.error(`Error during navigation on page ${pageNumber}:`, navError);
-    //             break;
-    //         }
-    //         await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
-    //         pageNumber++;
     //     }
     //
     //     return allTenders;
     // }
     async processPagination(page) {
-        await page.waitForSelector('.pagination-container', { timeout: 30000 });
+        await page.waitForSelector('.pagination-container', {timeout: 30000});
+
+        // Dodajemy style dla wizualizacji skanowania
+        if (config.scanning) {
+            await page.addStyleTag({
+                content: `
+                .page-scanning {
+                    border: 2px solid #4CAF50 !important;
+                    position: relative;
+                }
+                .page-scanning::before {
+                    content: "Scanning...";
+                    position: fixed;
+                    top: 0;
+                    right: 0;
+                    background: #4CAF50;
+                    color: white;
+                    padding: 5px 10px;
+                    border-radius: 0 0 0 5px;
+                    z-index: 1000;
+                }
+            `
+            });
+        }
+
         const allTenders = [];
         let pageNumber = 1;
         let consecutiveErrors = 0;
         const MAX_CONSECUTIVE_ERRORS = 3;
 
         while (pageNumber <= 1000) {
-            try {
-                // Wait for table content
-                await page.waitForFunction(
-                    () => document.querySelectorAll('tbody tr').length > 0,
-                    { timeout: 10000 }
-                );
-                logger.info(`======= Scanning Page ${pageNumber} =======`);
+            let retryCount = 0;
+            const maxRetries = 3;
+            let success = false;
 
-                // Scrape current page
-                const pageTenders = await this.scrapeCurrentPage(page);
-
-                if (pageTenders.length > 0) {
-                    await this.saveListings(pageTenders);
-                    allTenders.push(...pageTenders);
-                    logger.info(`✓ Page ${pageNumber} completed - Found ${pageTenders.length} tenders`);
-                    logger.info(`Total tenders collected: ${allTenders.length}`);
-                    consecutiveErrors = 0; // Reset error counter on success
-                }
-
-                // Check for next page
-                const nextPageInfo = await this.checkNextPage(page);
-                if (!nextPageInfo.exists || nextPageInfo.isDisabled) break;
-
-                // Navigate to next page
-                const currentPageContent = await page.evaluate(() => document.querySelector('tbody')?.innerHTML || '');
-                await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
-
+            while (retryCount < maxRetries && !success) {
                 try {
                     await page.waitForFunction(
-                        oldContent => {
-                            const newContent = document.querySelector('tbody')?.innerHTML || '';
-                            return newContent !== oldContent && document.querySelectorAll('tbody tr').length > 0;
-                        },
-                        { timeout: 5000 },
-                        currentPageContent
+                        () => document.querySelectorAll('tbody tr').length > 0,
+                        {timeout: 10000}
                     );
-                } catch (navError) {
-                    throw new Error(`Navigation failed: ${navError.message}`);
+                    logger.info(`======= Scanning Page ${pageNumber} =======`);
+
+                    // Dodajemy wizualny znacznik skanowania
+                    if (config.scanning) {
+                        await page.evaluate(() => {
+                            const table = document.querySelector('lib-table');
+                            if (table) table.classList.add('page-scanning');
+                        });
+                    }
+
+                    const pageTenders = await this.scrapeCurrentPage(page);
+
+                    // Usuwamy wizualny znacznik po skanowaniu
+                    if (config.scanning) {
+                        await page.evaluate(() => {
+                            const table = document.querySelector('lib-table');
+                            if (table) table.classList.remove('page-scanning');
+                        });
+                    }
+
+                    if (pageTenders.length > 0) {
+                        await this.saveListings(pageTenders);
+                        allTenders.push(...pageTenders);
+                        logger.info(`✓ Page ${pageNumber} completed - Found ${pageTenders.length} tenders`);
+                        logger.info(`Total tenders collected: ${allTenders.length}`);
+                    }
+                    success = true;
+                    consecutiveErrors = 0; // Reset tylko po pełnym sukcesie
+
+                } catch (error) {
+                    retryCount++;
+                    logger.warn(`Error on page ${pageNumber}. Retry attempt ${retryCount}/${maxRetries}...`);
+
+                    if (error.name === 'TargetCloseError' || error.message.includes('detached')) {
+                        try {
+                            // Jeśli strona jest zamknięta, tworzymy nową i reinicjalizujemy
+                            if (page.isClosed()) {
+                                logger.info('Page is closed. Opening a new page...');
+                                page = await this.browser.newPage();
+                                await this.setupBrowser(page);
+                                await page.goto(config.baseUrl, {
+                                    waitUntil: 'networkidle2',
+                                    timeout: 60000
+                                });
+                                await this.navigateAndSearch(page, 'microsoft');
+
+                                // Nawigacja do aktualnej strony
+                                for (let i = 1; i < pageNumber; i++) {
+                                    await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
+                                    await page.waitForFunction(
+                                        () => document.querySelectorAll('tbody tr').length > 0,
+                                        {timeout: 10000}
+                                    );
+                                    await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
+                                }
+                            } else {
+                                await page.reload({waitUntil: 'networkidle0'});
+                            }
+                            await new Promise(r => setTimeout(r, 2000));
+                        } catch (reloadError) {
+                            logger.error(`Reload failed on retry attempt ${retryCount}:`, reloadError);
+                            if (retryCount === maxRetries) {
+                                consecutiveErrors++;
+                            }
+                        }
+                    } else {
+                        consecutiveErrors++;
+                        logger.error(`Error scanning page ${pageNumber}:`, error);
+                        break;
+                    }
                 }
+            }
 
-                await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
-                pageNumber++;
+            // Jeśli wszystkie próby nie powiodły się, restartujemy przeglądarkę
+            if (!success && consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                logger.info('Maximum consecutive errors reached. Relaunching browser...');
 
-            } catch (error) {
-                consecutiveErrors++;
-                logger.error(`Error on page ${pageNumber}:`, error);
-                console.log(`Error on page ${pageNumber}:`, error);
-
-                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-                    logger.info('Maximum consecutive errors reached. Relaunching browser...');
-
-                    // Clean up existing browser
+                try {
                     await this.cleanup(this.browser, page);
 
-                    // Launch fresh browser
+                    // Dodajemy opóźnienie przed ponownym uruchomieniem
+                    await new Promise(r => setTimeout(r, 5000));
+
                     this.browser = await puppeteer.launch({
                         ...config.puppeteer.launch,
                         args: [
@@ -349,11 +363,8 @@ class PuppeteerListingsScraper extends BaseScraper {
                         ]
                     });
 
-                    // Create new page and set up
                     page = await this.browser.newPage();
                     await this.setupBrowser(page);
-
-                    // Navigate back to where we were
                     await page.goto(config.baseUrl, {
                         waitUntil: 'networkidle2',
                         timeout: 60000
@@ -361,27 +372,56 @@ class PuppeteerListingsScraper extends BaseScraper {
 
                     await this.navigateAndSearch(page, 'microsoft');
 
-                    // Navigate to the last successful page
+                    // Nawigacja do ostatniej strony
                     for (let i = 1; i < pageNumber; i++) {
                         logger.info(`Recovering pagination - navigating to page ${i}`);
                         const nextPageInfo = await this.checkNextPage(page);
-                        if (!nextPageInfo.exists || nextPageInfo.isDisabled) {
-                            logger.error('Cannot recover pagination - next page button not available');
+                        if (!nextPageInfo.exists || nextPageInfo.isDisabled || !nextPageInfo.hasData) {
+                            logger.info('Reached the end of results or no more data available');
                             break;
                         }
                         await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
                         await page.waitForFunction(
                             () => document.querySelectorAll('tbody tr').length > 0,
-                            { timeout: 10000 }
+                            {timeout: 10000}
                         );
                         await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
                     }
 
-                    consecutiveErrors = 0; // Reset error counter after recovery
-                    continue; // Retry current page with fresh browser
+                    consecutiveErrors = 0;
+                    continue;
+                } catch (error) {
+                    logger.error('Failed to relaunch browser:', error);
+                    throw error;
                 }
+            }
 
-                // If we haven't hit max errors, wait briefly and retry
+            if (success) {
+                const nextPageInfo = await this.checkNextPage(page);
+                if (!nextPageInfo.exists || nextPageInfo.isDisabled) break;
+
+                try {
+                    const currentPageContent = await page.evaluate(() => document.querySelector('tbody')?.innerHTML || '');
+                    await page.click('.btn.btn-sm.btn-outline-secondary.append-arrow');
+
+                    await page.waitForFunction(
+                        oldContent => {
+                            const newContent = document.querySelector('tbody')?.innerHTML || '';
+                            return newContent !== oldContent && document.querySelectorAll('tbody tr').length > 0;
+                        },
+                        {timeout: 5000},
+                        currentPageContent
+                    );
+
+                    await new Promise(r => setTimeout(r, config.scanning ? 1000 : 100));
+                    pageNumber++;
+                } catch (navError) {
+                    logger.error(`Navigation error on page ${pageNumber}:`, navError);
+                    consecutiveErrors++;
+                    continue;
+                }
+            } else {
+                // Jeśli nie osiągnęliśmy sukcesu ale nie przekroczyliśmy limitu błędów
                 await new Promise(r => setTimeout(r, 5000));
                 continue;
             }
@@ -396,7 +436,7 @@ class PuppeteerListingsScraper extends BaseScraper {
      * @returns {Promise<Array>} - Array of tenders from the current page.
      */
     async scrapeCurrentPage(page) {
-        await page.waitForSelector('tbody tr', { timeout: 30000, visible: true });
+        await page.waitForSelector('tbody tr', {timeout: 30000, visible: true});
         if (config.scanning) {
             await page.addStyleTag({
                 content: `
@@ -421,7 +461,7 @@ class PuppeteerListingsScraper extends BaseScraper {
             if (config.scanning) {
                 await page.evaluate((row) => {
                     row.classList.add('scanning');
-                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    row.scrollIntoView({behavior: 'smooth', block: 'center'});
                 }, row);
             }
 
@@ -461,20 +501,52 @@ class PuppeteerListingsScraper extends BaseScraper {
      * @param {Page} page - Puppeteer page instance.
      * @returns {Promise<Object>} - Object with exists and isDisabled properties.
      */
+    // async checkNextPage(page) {
+    //     const selector = '.btn.btn-sm.btn-outline-secondary.append-arrow';
+    //     const nextButton = await page.$(selector);
+    //     if (!nextButton) return {exists: false};
+    //     const buttonText = await page.evaluate(btn => btn.textContent.trim(), nextButton);
+    //     const isDisabled = await page.evaluate(btn =>
+    //             btn.classList.contains('disabled') || btn.hasAttribute('disabled'),
+    //         nextButton
+    //     );
+    //     return {
+    //         exists: buttonText.includes('Następna'),
+    //         isDisabled
+    //     };
+    // }
     async checkNextPage(page) {
         const selector = '.btn.btn-sm.btn-outline-secondary.append-arrow';
         const nextButton = await page.$(selector);
+
+        // Dodajemy sprawdzenie całkowitej liczby ogłoszeń
+        const totalResultsText = await page.evaluate(() => {
+            const element = document.querySelector('.mat-mdc-paginator-range-label');
+            return element ? element.textContent.trim() : '';
+        });
+
+        logger.info(`Pagination info: ${totalResultsText}`);
+
         if (!nextButton) return { exists: false };
+
         const buttonText = await page.evaluate(btn => btn.textContent.trim(), nextButton);
         const isDisabled = await page.evaluate(btn =>
                 btn.classList.contains('disabled') || btn.hasAttribute('disabled'),
             nextButton
         );
+
+        const currentPageHasData = await page.evaluate(() => {
+            const rows = document.querySelectorAll('tbody tr');
+            return rows.length > 0;
+        });
+
         return {
             exists: buttonText.includes('Następna'),
-            isDisabled
+            isDisabled,
+            hasData: currentPageHasData
         };
     }
+
 
     /**
      * Cleanup resources.
@@ -487,6 +559,7 @@ class PuppeteerListingsScraper extends BaseScraper {
                 await page.close();
             } catch (error) {
                 logger.error('Error closing page:', error);
+                console.log('Error closing page:', error);
             }
         }
         if (browser) {
@@ -494,15 +567,9 @@ class PuppeteerListingsScraper extends BaseScraper {
                 await browser.close();
             } catch (error) {
                 logger.error('Error closing browser:', error);
+                console.log('Error closing browser:', error);
             }
         }
-        // if (this.db) {
-        //     try {
-        //         await this.db.disconnect();
-        //     } catch (error) {
-        //         logger.error('Error disconnecting DB:', error);
-        //     }
-        // }
     }
 }
 
