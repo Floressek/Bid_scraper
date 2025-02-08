@@ -21,17 +21,46 @@ class MongoDB {
     }
 
     async saveListings(listings, scraperType) {
-        const collectionName = `tender_listings_test_${scraperType.toLowerCase()}`;
+        const collectionName = `tender_listings_test2_${scraperType.toLowerCase()}`;
         const collection = this.db.collection(collectionName);
-        const documents = listings.map(listing => ({
-            ...listing,
-            scraperType,
-            scrapedAt: new Date(),
-            processed: false,
-            source: 'ezamowienia'
-        }));
-        logger.info(`Inserting ${documents.length} listings to ${collectionName}`);
-        return await collection.insertMany(documents);
+
+        // Filtrujemy duplikaty
+        const uniqueListings = [];
+        for (const listing of listings) {
+            try {
+                // Sprawdzamy czy istnieje po numerze lub tytule
+                const exists = await collection.findOne({
+                    $and: [
+                        {number: listing.number},
+                        {title: listing.title},
+                        {status: listing.status},
+                        {link: listing.link}
+                    ]
+                });
+
+                if (!exists) {
+                    uniqueListings.push({
+                        ...listing,
+                        scraperType,
+                        scrapedAt: new Date(),
+                        processed: false,
+                        source: 'ezamowienia'
+                    });
+                } else {
+                    logger.info(`Skipping duplicate tender: ${listing.number} - ${listing.title?.substring(0, 30)}...`);
+                }
+            } catch (error) {
+                logger.error(`Error checking duplicate for tender ${listing.number}:`, error);
+            }
+        }
+
+        if (uniqueListings.length > 0) {
+            logger.info(`Inserting ${uniqueListings.length} unique listings to ${collectionName}`);
+            return await collection.insertMany(uniqueListings);
+        } else {
+            logger.info('No new unique listings to save');
+            return {insertedCount: 0};
+        }
     }
 
     async saveTenderDetails(details, scraperId) {
@@ -45,13 +74,13 @@ class MongoDB {
     }
 
     async findUnprocessedListings() {
-        const collection = this.db.collection('tender_listings_test_puppeteer');
+        const collection = this.db.collection('tender_listings_test2_puppeteer');
         logger.info('Finding unprocessed listings');
         return await collection.find({processed: false}).toArray();
     }
 
     async markListingAsProcessed(listingId) {
-        const collection = this.db.collection('tender_listings_test_puppeteer');
+        const collection = this.db.collection('tender_listings_test2_puppeteer');
         logger.info(`Marking listing ${listingId} as processed`);
         return await collection.updateOne(
             {_id: listingId},
