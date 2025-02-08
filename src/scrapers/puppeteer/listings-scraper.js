@@ -418,12 +418,10 @@ class PuppeteerListingsScraper extends BaseScraper {
                 } catch (navError) {
                     logger.error(`Navigation error on page ${pageNumber}:`, navError);
                     consecutiveErrors++;
-                    continue;
                 }
             } else {
                 // Jeśli nie osiągnęliśmy sukcesu ale nie przekroczyliśmy limitu błędów
                 await new Promise(r => setTimeout(r, 5000));
-                continue;
             }
         }
 

@@ -39,5 +39,6 @@ module.exports = {
     mongodb: {
         url: process.env.MONGO_URL,
         dbName: 'tenders_db'
-    }
+    },
+
 };
