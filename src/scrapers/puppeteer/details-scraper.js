@@ -386,13 +386,19 @@ class DetailedScraperWorker extends BaseScraper {
                     processedAt: new Date()
                 }, SCRAPER_TYPES.DETAILED);
                 logger.info(`✓ Saved tender ${tender.number}`);
+                return true; // Oznaczamy sukces
             } else {
                 logger.info(`✗ Rejected tender ${tender.number}: ${result.message}`);
+                await new Promise(r => setTimeout(r, 3000));
+                return true; // To też jest prawidłowe zakończenie, tylko tender nie spełnił kryteriów
             }
-
-            await new Promise(r => setTimeout(r, 3000));
         } catch (error) {
             logger.error(`Error processing tender ${tender.number}:`, error);
+
+            // Jeśli to TargetCloseError, nie oznaczamy jako przetworzone
+            return !(error.name === 'TargetCloseError' ||
+                error.message.includes('Protocol error') ||
+                error.message.includes('Target closed'));
         } finally {
             await this.cleanup();
         }
@@ -405,8 +411,12 @@ class DetailedScraperWorker extends BaseScraper {
             logger.info(`Found ${tenders.length} unprocessed tenders`);
 
             for (const tender of tenders) {
-                await this.processTenderDetails(tender);
-                await this.db.markListingAsProcessed(tender._id);
+                const processed = await this.processTenderDetails(tender);
+                if (processed) {
+                    await this.db.markListingAsProcessed(tender._id);
+                } else {
+                    logger.info(`Tender ${tender.number} will be processed again in next run`);
+                }
                 await new Promise(r => setTimeout(r, 1000));
             }
         } catch (error) {
