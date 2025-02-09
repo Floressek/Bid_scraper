@@ -35,8 +35,8 @@ class CorrectionProcessor {
 
     async processDetails() {
         try {
-            const collection = this.db.db.collection('tender_details');
-            const newCollection = this.db.db.collection('tender_analysis_regex');
+            const collection = this.db.db.collection('tender_details1');
+            const newCollection = this.db.db.collection('tender_analysis_regex_2');
 
             const tenders = await collection.find({}).toArray();
             logger.info(`Found ${tenders.length} tenders to analyze`);
@@ -141,7 +141,7 @@ class CorrectionProcessor {
             - Generic IT/software mentions without Microsoft specifics
             - Hardware/devices is the main objective of the purchase and not licensing
             - Non-licensing Microsoft mentions;
-            Exclude if contains: edge/ Edge, surface, xbox, hardware.
+            Exclude if contains: Microsoft edge/ Edge, surface, xbox, hardware.
             For save=true, tender must clearly relate to Microsoft software/cloud licensing (not just generic IT/software mentions).
             Use null for missing values. Currency should be PLN if not specified otherwise.`;
 
