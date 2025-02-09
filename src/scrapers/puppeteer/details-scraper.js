@@ -5,6 +5,8 @@ const config = require('../../utils/config/config');
 const {createLogger} = require('../../utils/logger/logger');
 const SCRAPER_TYPES = require('../../scrapers/base/scraper-types');
 const OpenAI = require('openai');
+const {getRandomUserAgent} = require("../../utils/helpers/browser-helpers");
+
 
 const logger = createLogger(__filename);
 
@@ -39,7 +41,7 @@ class DetailedScraperWorker extends BaseScraper {
         this.browser = await puppeteer.launch({
             product: 'chrome',
             executablePath: process.env.CHROME_PATH || undefined,
-            headless: true,
+            headless: config.puppeteer.launch.headless,
             defaultViewport: {
                 width: 1920,
                 height: 1080
@@ -54,7 +56,8 @@ class DetailedScraperWorker extends BaseScraper {
         });
 
         this.page = await this.browser.newPage();
-        await this.page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
+        // await this.page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
+        await this.page.setUserAgent(getRandomUserAgent());
         await this.page.setViewport({width: 1920, height: 1080});
     }
 
@@ -285,7 +288,6 @@ class DetailedScraperWorker extends BaseScraper {
                     currency: result.values?.currency || 'PLN'
                 },
                 tender_id: result.tender_id || null,
-                deadline: result.deadline || null,
                 raw_response: result // zachowujemy pełną odpowiedź
             };
         } catch (e) {
@@ -295,7 +297,6 @@ class DetailedScraperWorker extends BaseScraper {
                 license_counts: {},
                 values: { net: null, gross: null, currency: 'PLN' },
                 tender_id: null,
-                deadline: null,
                 error: "Failed to parse response"
             };
         }
@@ -353,9 +354,6 @@ class DetailedScraperWorker extends BaseScraper {
                     Net: ${data.values.net ? data.values.net + ' ' + data.values.currency : 'Not specified'}<br>
                     Gross: ${data.values.gross ? data.values.gross + ' ' + data.values.currency : 'Not specified'}
                 </div>
-                <div>
-                    <strong>Deadline:</strong> ${data.deadline || 'Not specified'}
-                </div>
             `;
 
                 container.style.background = data.save ? '#e8f5e9' : '#ffebee';
@@ -382,20 +380,25 @@ class DetailedScraperWorker extends BaseScraper {
                     products: result.products,
                     license_counts: result.license_counts,
                     values: result.values,
-                    deadline: result.deadline,
                     originalTender: tender,
                     fullContent: content,
                     raw_analysis: result.raw_response,
                     processedAt: new Date()
                 }, SCRAPER_TYPES.DETAILED);
                 logger.info(`✓ Saved tender ${tender.number}`);
+                return true; // Oznaczamy sukces
             } else {
                 logger.info(`✗ Rejected tender ${tender.number}: ${result.message}`);
+                await new Promise(r => setTimeout(r, 3000));
+                return true; // To też jest prawidłowe zakończenie, tylko tender nie spełnił kryteriów
             }
-
-            await new Promise(r => setTimeout(r, 3000));
         } catch (error) {
             logger.error(`Error processing tender ${tender.number}:`, error);
+
+            // Jeśli to TargetCloseError, nie oznaczamy jako przetworzone
+            return !(error.name === 'TargetCloseError' || error.message.includes('Requesting main frame too early!') ||
+                error.message.includes('Protocol error') ||
+                error.message.includes('Target closed'));
         } finally {
             await this.cleanup();
         }
@@ -408,8 +411,12 @@ class DetailedScraperWorker extends BaseScraper {
             logger.info(`Found ${tenders.length} unprocessed tenders`);
 
             for (const tender of tenders) {
-                await this.processTenderDetails(tender);
-                await this.db.markListingAsProcessed(tender._id);
+                const processed = await this.processTenderDetails(tender);
+                if (processed) {
+                    await this.db.markListingAsProcessed(tender._id);
+                } else {
+                    logger.info(`Tender ${tender.number} will be processed again in next run`);
+                }
                 await new Promise(r => setTimeout(r, 1000));
             }
         } catch (error) {

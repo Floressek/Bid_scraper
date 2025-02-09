@@ -12,7 +12,7 @@ module.exports = {
             }
         },
         launch: {
-            headless: true,
+            headless: false,
             defaultViewport: null, // null means the viewport is 800x600,
             // executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
             args: [
