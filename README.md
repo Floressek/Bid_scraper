@@ -98,7 +98,52 @@ puppeteer: {
 - `tender_analysis`: AI-processed analysis results
 
 ## Features
+```mermaid
+sequenceDiagram
+    participant CLI as Command Line
+    participant App as Main Application
+    participant PS as Puppeteer Scraper
+    participant AS as API Scraper
+    participant OAS as Official API Scraper
+    participant DS as Details Scraper
+    participant CP as Correction Processor
+    participant DB as MongoDB
+    participant GPT as OpenAI GPT
 
+    CLI->>App: Start Command (normal/xhr/api)
+    
+    alt normal mode
+        App->>PS: Start Scraping
+        PS->>DB: Save Listings
+    else xhr mode
+        App->>AS: Start Scraping
+        AS->>DB: Save Listings
+    else api mode
+        App->>OAS: Start Scraping
+        OAS->>DB: Save Listings
+    end
+
+    alt --with-details flag
+        App->>DS: Start Details Processing
+        DS->>DB: Get Unprocessed Listings
+        loop For each listing
+            DS->>DS: Initialize Browser
+            DS->>DS: Setup UI
+            DS->>GPT: Analyze Content
+            DS->>DB: Save Analysis
+            DS->>DS: Cleanup Browser
+        end
+    end
+
+    alt --correction flag
+        App->>CP: Start Correction
+        CP->>DB: Get Tender Details
+        CP->>GPT: Analyze Details
+        CP->>DB: Save Corrected Data
+    end
+
+    App->>CLI: Process Complete
+```
 - Multiple scraping methods (Puppeteer, XHR, Official API)
 - AI-powered tender analysis using OpenAI GPT
 - Automatic browser user-agent rotation
