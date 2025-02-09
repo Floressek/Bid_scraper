@@ -1,173 +1,146 @@
-
 # Tender Scraping System
 
-A comprehensive system for scraping and analyzing tender data from ezamowienia.gov.pl using multiple scraping strategies and data processing pipelines.
+A comprehensive system for scraping and analyzing tender data from ezamowienia.gov.pl, with support for multiple scraping methods and AI-powered analysis.
 
-## Architecture
+## Requirements
 
-The system consists of multiple components working together to collect, process, and analyze tender data:
-
-1. **Scrapers**
-   - Puppeteer Scraper (UI-based)
-   - API Scraper (XHR-based)
-   - Official API Scraper
-   - Details Scraper
-
-2. **Data Processing**
-   - Correction Processor
-   - Analysis Pipeline
-
-3. **Storage**
-   - MongoDB for data persistence
-
-## Prerequisites
-
-```bash
-# Required environment variables (.env)
-MONGO_URL=mongodb://localhost:27017
-MONGO_DB=tenders_db
-OPENAI_API_KEY=your_openai_api_key
-CHROME_PATH=/path/to/chrome # Optional
-```
+- Node.js (v14 or higher)
+- MongoDB
+- Chrome/Chromium browser
+- OpenAI API key (for analysis features)
 
 ## Installation
 
+1. Clone the repository:
 ```bash
-# Install dependencies
-npm install
-
-# Required packages
-npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth winston chalk dotenv mongodb openai
+git clone <repository-url>
+cd tender-scraper
 ```
 
-## Usage Commands
-
-### Basic Scraping
-
+2. Install dependencies:
 ```bash
-# Run Puppeteer scraper (default)
-node index.js normal
+npm install
+```
 
-# Run XHR-based API scraper
+3. Create a `.env` file:
+```env
+MONGO_URL=mongodb://localhost:27017
+MONGO_DB=tenders_db
+OPENAI_API_KEY=your_openai_api_key
+CHROME_PATH=/path/to/chrome  # Optional
+```
+
+## Usage
+
+### Basic Scraping Commands
+
+1. **Puppeteer Scraper (Default)**
+```bash
+# Run with headless browser
+node index.js normal --server
+
+# Run with visible browser
+node index.js normal --presentation
+```
+
+2. **XHR API Scraper**
+```bash
 node index.js xhr
+```
 
-# Run Official API scraper
+3. **Official API Scraper**
+```bash
 node index.js api
-
-# Run Details scraper only
-node index.js details
 ```
 
 ### Advanced Options
 
+1. **Details Processing**
 ```bash
-# Run scraper with details processing
+# Run with details processing
 node index.js normal --with-details
-node index.js xhr --with-details
-node index.js api --with-details
 
 # Run only details processing
 node index.js normal --only-details
-node index.js xhr --only-details
-node index.js api --only-details
 
+# Run details with visible browser
+node index.js normal --only-details --presentation
+```
+
+2. **Correction Processing**
+```bash
 # Run correction processor
 node index.js normal --correction
 ```
 
-### Mode Flags
+## Configuration
 
-```bash
-# Presentation mode (non-headless, no scanning visuals)
-node index.js normal --presentation
-
-# Server mode (headless, with scanning visuals)
-node index.js normal --server
-```
-
-## Component Description
-
-### Scrapers
-
-1. **Puppeteer Scraper (`listings-scraper.js`)**
-   - UI-based scraping using browser automation
-   - Handles pagination and dynamic content
-   - Visual feedback during scanning (optional)
-
-2. **API Scraper (`api-scraper.js`)**
-   - XHR-based data collection
-   - Direct API calls to the tender platform
-   - Efficient for bulk data collection
-
-3. **Official API Scraper (`official-api-scraper.js`)**
-   - Uses the official API endpoints
-   - Structured data collection
-   - Supports filtering and pagination
-
-4. **Details Scraper (`details-scraper.js`)**
-   - Processes individual tender details
-   - Extracts comprehensive information
-   - Supports parallel processing
-
-### Data Processing
-
-1. **Correction Processor (`correction-processor.js`)**
-   - Analyzes tender details using OpenAI
-   - Identifies Microsoft-specific tenders
-   - Extracts key information (prices, licenses, etc.)
-
-### Configuration
-
-The system can be configured through:
-- Environment variables
-- `config.js` file
-- Command-line arguments
-
-Key configuration options:
+### Browser Settings
+In `config.js`:
 ```javascript
-{
-    baseUrl: 'https://ezamowienia.gov.pl/mo-client-board/bzp/list',
-    scanning: true/false, // Visual feedback
-    puppeteer: {
-        headless: true/false,
-        // Other browser options
+puppeteer: {
+    launch: {
+        headless: true/false,  // Control browser visibility
+        defaultViewport: null,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--window-size=1920,1080'
+        ]
     }
 }
 ```
 
-## Error Handling
+### MongoDB Collections
 
-The system implements:
-- Automatic retries for failed requests
-- Graceful error recovery
-- Detailed logging
-- Browser session recovery
+- `tender_listings_{scraper_type}`: Basic tender information
+- `tender_details`: Detailed tender information
+- `tender_analysis`: AI-processed analysis results
+
+## Features
+
+- Multiple scraping methods (Puppeteer, XHR, Official API)
+- AI-powered tender analysis using OpenAI GPT
+- Automatic browser user-agent rotation
+- Detailed logging system
+- Visual progress tracking for details processing
+- Error recovery and retry mechanisms
 
 ## Logging
 
-Logs are stored in:
-- `logs/combined.log` - All logs
-- `logs/error.log` - Error logs only
+Logs are stored in the `logs` directory:
+- `combined.log`: All log levels
+- `error.log`: Error-level logs only
 
-Log levels:
-- ERROR: Critical failures
-- WARN: Non-critical issues
-- INFO: Operation progress
-- DEBUG: Detailed debugging
+## Error Handling
 
-## Database Collections
+The system includes:
+- Automatic retry mechanisms
+- Browser session recovery
+- Connection error handling
+- Process cleanup on errors
 
-1. **tender_listings_{scraper_type}**
-   - Basic tender information
-   - Scraper-specific data
+## Development
 
-2. **tender_details**
-   - Comprehensive tender information
-   - Raw content and processed data
+To modify the system:
 
-3. **tender_analysis**
-   - AI-processed analysis results
-   - Microsoft-specific information
+1. **Browser Configuration**
+```javascript
+// Modify browser settings in initBrowser()
+async initBrowser() {
+    this.browser = await puppeteer.launch({
+        headless: config.puppeteer.launch.headless,
+        defaultViewport: { width: 1920, height: 1080 },
+        // ... other settings
+    });
+}
+```
+
+2. **User Agent Rotation**
+```javascript
+// Use random user agent
+await this.page.setUserAgent(getRandomUserAgent());
+```
 
 ## Contributing
 
@@ -179,4 +152,4 @@ Log levels:
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details
+This project is licensed under the MIT License.
