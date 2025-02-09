@@ -21,7 +21,7 @@ class MongoDB {
     }
 
     async saveListings(listings, scraperType) {
-        const collectionName = `tender_listings_test2_${scraperType.toLowerCase()}`;
+        const collectionName = `tender_listings_test3_${scraperType.toLowerCase()}`;
         const collection = this.db.collection(collectionName);
 
         // Filtrujemy duplikaty
@@ -64,7 +64,7 @@ class MongoDB {
     }
 
     async saveTenderDetails(details, scraperId) {
-        const collection = this.db.collection('tender_details');
+        const collection = this.db.collection('tender_details1');
         logger.info(`Inserting details for tender ${details.tenderId}`);
         return await collection.insertOne({
             ...details,
@@ -74,13 +74,13 @@ class MongoDB {
     }
 
     async findUnprocessedListings() {
-        const collection = this.db.collection('tender_listings_test_puppeteer');
+        const collection = this.db.collection('tender_listings_test3_puppeteer');
         logger.info('Finding unprocessed listings');
         return await collection.find({processed: false}).toArray();
     }
 
     async markListingAsProcessed(listingId) {
-        const collection = this.db.collection('tender_listings_test_puppeteer');
+        const collection = this.db.collection('tender_listings_test3_puppeteer');
         logger.info(`Marking listing ${listingId} as processed`);
         return await collection.updateOne(
             {_id: listingId},

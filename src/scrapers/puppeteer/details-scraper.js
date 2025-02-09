@@ -288,7 +288,6 @@ class DetailedScraperWorker extends BaseScraper {
                     currency: result.values?.currency || 'PLN'
                 },
                 tender_id: result.tender_id || null,
-                deadline: result.deadline || null,
                 raw_response: result // zachowujemy pełną odpowiedź
             };
         } catch (e) {
@@ -298,7 +297,6 @@ class DetailedScraperWorker extends BaseScraper {
                 license_counts: {},
                 values: { net: null, gross: null, currency: 'PLN' },
                 tender_id: null,
-                deadline: null,
                 error: "Failed to parse response"
             };
         }
@@ -356,9 +354,6 @@ class DetailedScraperWorker extends BaseScraper {
                     Net: ${data.values.net ? data.values.net + ' ' + data.values.currency : 'Not specified'}<br>
                     Gross: ${data.values.gross ? data.values.gross + ' ' + data.values.currency : 'Not specified'}
                 </div>
-                <div>
-                    <strong>Deadline:</strong> ${data.deadline || 'Not specified'}
-                </div>
             `;
 
                 container.style.background = data.save ? '#e8f5e9' : '#ffebee';
@@ -385,7 +380,6 @@ class DetailedScraperWorker extends BaseScraper {
                     products: result.products,
                     license_counts: result.license_counts,
                     values: result.values,
-                    deadline: result.deadline,
                     originalTender: tender,
                     fullContent: content,
                     raw_analysis: result.raw_response,
