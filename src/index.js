@@ -1,10 +1,12 @@
-const { createLogger } = require('./utils/logger/logger');
+const {createLogger} = require('./utils/logger/logger');
 const config = require('./utils/config/config'); // Import config early to override values
 const puppeteerScraper = require('./scrapers/puppeteer/listings-scraper');
 const apiScraper = require('./scrapers/api/api-scraper');
 const officialApiScraper = require('./scrapers/api/official-api-scraper');
 const detailsScraper = require('./scrapers/puppeteer/details-scraper');
 const SCRAPER_TYPES = require('./scrapers/base/scraper-types');
+const correctionProcessor = require('./scrapers/puppeteer/correction-processor');
+
 
 const logger = createLogger(__filename);
 
@@ -49,8 +51,17 @@ async function main() {
     const scraperType = process.argv[2] || 'normal';
     const shouldProcessDetails = process.argv[3] === '--with-details';
     const onlyDetails = process.argv[3] === '--only-details';
+    const withCorrection = process.argv[3] === '--correction';
 
     try {
+        if (withCorrection) {
+            logger.info('Starting correction processor...');
+            await correctionProcessor.initialize();
+            await correctionProcessor.processDetails();
+            await correctionProcessor.cleanup();
+            logger.info('Correction processing completed');
+            process.exit(0);
+        }
         switch (scraperType.toLowerCase()) {
             case 'normal':
                 logger.info('Starting application with puppeteer scraper');

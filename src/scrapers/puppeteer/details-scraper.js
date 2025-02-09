@@ -202,22 +202,42 @@ class DetailedScraperWorker extends BaseScraper {
         });
 
         try {
-            const systemPrompt = `Analyze tender for Microsoft software licensing keywords and key phrases. Find instances of these patterns:
+            const systemPrompt = `Analyze tender notices specifically for Microsoft licensing and subscription services. Detect these patterns:
 
-            1. Licensing: "licencj", "license", "licens", "microsoft volume", "volum", "software assurance", "subskrypcj", "subscription"
-            2. Products: "office 365", "microsoft 365", "m365", "windows server", "windows cal", "azure", "ms office", "office pro"
-            3. Programs: "enterprise agreement", "ea agreement", "open value", "microsoft csp", "cloud solution provider"
-
+            1. Microsoft Services & Licensing:
+            - Exchange Online, Microsoft 365/M365 (including E3/E5/Business variants)
+            - Entra ID (formerly Azure AD)
+            - Enterprise licensing agreements (EA, CSP, MPSA)
+            - Microsoft product subscriptions and licenses
+            - Microsoft cloud services (Azure, Exchange Online, Teams)
+            
+            2. Keywords (case insensitive, including Polish variants):
+            - Licensing terms: "licencj", "subskrypcj", "subscription", "MPSA"
+            - Product names: "Microsoft", "Exchange Online", "M365", "E3", "E5", "Entra", "Teams"
+            - Service types: "cloud", "online", "Microsoft 365", "Azure"
+            
             Return JSON:
             {
-              "save": boolean (true if ≥2 relevant matches & no exclusions),
+              "save": boolean (true if clearly Microsoft-specific licensing/services),
               "message": string (reasoning),
-              "foundKeywords": array (matched terms),
-              "exactMatches": object (term:count pairs)
+              "products": array (specific Microsoft products/services found),
+              "agreement_type": string (if specified: EA, CSP, MPSA etc),
+              "license_counts": object (product:quantity pairs),
+                "values": {
+                "net": number | null,
+                "gross": number | null,
+                "currency": string
+            },
+              "duration": string (subscription/license period if specified)
             }
             
+            Exclude if:
+            - Generic IT/software mentions without Microsoft specifics
+            - Hardware/devices only
+            - Non-licensing Microsoft mentions;
             Exclude if contains: edge, surface, xbox, hardware.
-            For save=true, tender must clearly relate to Microsoft software/cloud licensing (not just generic IT/software mentions).`;
+            For save=true, tender must clearly relate to Microsoft software/cloud licensing (not just generic IT/software mentions).
+            Use null for missing values. Currency should be PLN if not specified otherwise.`;
 
             const response = await openai.chat.completions.create({
                 model: "gpt-4o-mini",
@@ -228,7 +248,7 @@ class DetailedScraperWorker extends BaseScraper {
                     },
                     {role: "user", content}
                 ],
-                temperature: 0
+                temperature: 0.2
             });
 
             const result = this.parseResponse(response);
@@ -257,16 +277,26 @@ class DetailedScraperWorker extends BaseScraper {
             const result = JSON.parse(clean);
             return {
                 save: result.save || false,
-                message: result.message || "No message",
-                foundKeywords: result.foundKeywords || [],
-                exactMatches: result.exactMatches || {}
+                products: result.products || [],
+                license_counts: result.license_counts || {},
+                values: {
+                    net: result.values?.net || null,
+                    gross: result.values?.gross || null,
+                    currency: result.values?.currency || 'PLN'
+                },
+                tender_id: result.tender_id || null,
+                deadline: result.deadline || null,
+                raw_response: result // zachowujemy pełną odpowiedź
             };
         } catch (e) {
             return {
                 save: false,
-                message: "Failed to parse response",
-                foundKeywords: [],
-                exactMatches: {}
+                products: [],
+                license_counts: {},
+                values: { net: null, gross: null, currency: 'PLN' },
+                tender_id: null,
+                deadline: null,
+                error: "Failed to parse response"
             };
         }
     }
@@ -300,21 +330,33 @@ class DetailedScraperWorker extends BaseScraper {
             const keywordsList = document.querySelector('.keywords-list');
 
             if (container && keywordsList) {
-                const matchesHtml = Object.entries(data.exactMatches)
-                    .map(([kw, count]) =>
-                        `<span class="keyword-tag">${kw} (${count})</span>`
+                const productsHtml = data.products
+                    .map(product => `<span class="keyword-tag">${product}</span>`)
+                    .join('');
+
+                const licensesHtml = Object.entries(data.license_counts)
+                    .map(([product, count]) =>
+                        `<span class="keyword-tag">${product}: ${count}</span>`
                     ).join('');
 
                 keywordsList.innerHTML = `
-                    <div style="margin-bottom: 10px;">
-                        <strong>Found Keywords:</strong> 
-                        ${data.foundKeywords.length > 0 ? data.foundKeywords.join(', ') : 'None'}
-                    </div>
-                    <div>
-                        <strong>Exact Matches:</strong><br>
-                        ${matchesHtml || 'No exact matches found'}
-                    </div>
-                `;
+                <div style="margin-bottom: 10px;">
+                    <strong>Products Found:</strong><br>
+                    ${productsHtml || 'None'}
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <strong>License Counts:</strong><br>
+                    ${licensesHtml || 'None'}
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <strong>Values:</strong><br>
+                    Net: ${data.values.net ? data.values.net + ' ' + data.values.currency : 'Not specified'}<br>
+                    Gross: ${data.values.gross ? data.values.gross + ' ' + data.values.currency : 'Not specified'}
+                </div>
+                <div>
+                    <strong>Deadline:</strong> ${data.deadline || 'Not specified'}
+                </div>
+            `;
 
                 container.style.background = data.save ? '#e8f5e9' : '#ffebee';
             }
@@ -337,11 +379,14 @@ class DetailedScraperWorker extends BaseScraper {
             if (result.save) {
                 await this.db.saveTenderDetails({
                     tenderId: tender.number,
-                    analysis: result.message,
-                    keywords: result.foundKeywords,
-                    exactMatches: result.exactMatches,
+                    products: result.products,
+                    license_counts: result.license_counts,
+                    values: result.values,
+                    deadline: result.deadline,
                     originalTender: tender,
-                    fullContent: content
+                    fullContent: content,
+                    raw_analysis: result.raw_response,
+                    processedAt: new Date()
                 }, SCRAPER_TYPES.DETAILED);
                 logger.info(`✓ Saved tender ${tender.number}`);
             } else {
