@@ -196,5 +196,5 @@ await this.page.setUserAgent(getRandomUserAgent());
 5. Create a Pull Request
 
 ## License
-
 This project is licensed under the MIT License.
+
