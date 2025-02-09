@@ -396,7 +396,7 @@ class DetailedScraperWorker extends BaseScraper {
             logger.error(`Error processing tender ${tender.number}:`, error);
 
             // Jeśli to TargetCloseError, nie oznaczamy jako przetworzone
-            return !(error.name === 'TargetCloseError' ||
+            return !(error.name === 'TargetCloseError' || error.message.includes('Requesting main frame too early!') ||
                 error.message.includes('Protocol error') ||
                 error.message.includes('Target closed'));
         } finally {

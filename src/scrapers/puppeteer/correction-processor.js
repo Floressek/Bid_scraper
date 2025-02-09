@@ -36,10 +36,14 @@ class CorrectionProcessor {
     async processDetails() {
         try {
             const collection = this.db.db.collection('tender_details');
-            const newCollection = this.db.db.collection('tender_analysis');
+            const newCollection = this.db.db.collection('tender_analysis_regex');
 
             const tenders = await collection.find({}).toArray();
             logger.info(`Found ${tenders.length} tenders to analyze`);
+
+            // const excludeRegex = /^Ogłoszenie o (wykonaniu umowy|wyniku postępowania|zmian|zmianie)/i;
+            const excludeRegex = /^Ogłoszenie o\s+(?:wykonaniu umowy|wyniku postępowania|zmian(?:ie)?)/i;
+
 
             for (const tender of tenders) {
                 try {
@@ -47,6 +51,12 @@ class CorrectionProcessor {
                     const existing = await newCollection.findOne({ tenderId: tender.tenderId });
                     if (existing) {
                         logger.info(`Tender ${tender.tenderId} already processed, skipping...`);
+                        continue;
+                    }
+
+                    const title = tender.originalTender?.title || '';
+                    if (excludeRegex.test(title)) {
+                        logger.info(` 🎅 Skipping tender ${tender.tenderId} due to exclusion regex`);
                         continue;
                     }
 
@@ -125,12 +135,13 @@ class CorrectionProcessor {
             },
               "duration": string (subscription/license period if specified)
             }
+           
             
             Exclude if:
             - Generic IT/software mentions without Microsoft specifics
-            - Hardware/devices only
+            - Hardware/devices is the main objective of the purchase and not licensing
             - Non-licensing Microsoft mentions;
-            Exclude if contains: edge, surface, xbox, hardware.
+            Exclude if contains: edge/ Edge, surface, xbox, hardware.
             For save=true, tender must clearly relate to Microsoft software/cloud licensing (not just generic IT/software mentions).
             Use null for missing values. Currency should be PLN if not specified otherwise.`;
 
