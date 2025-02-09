@@ -74,13 +74,13 @@ class MongoDB {
     }
 
     async findUnprocessedListings() {
-        const collection = this.db.collection('tender_listings_test2_puppeteer');
+        const collection = this.db.collection('tender_listings_test_puppeteer');
         logger.info('Finding unprocessed listings');
         return await collection.find({processed: false}).toArray();
     }
 
     async markListingAsProcessed(listingId) {
-        const collection = this.db.collection('tender_listings_test2_puppeteer');
+        const collection = this.db.collection('tender_listings_test_puppeteer');
         logger.info(`Marking listing ${listingId} as processed`);
         return await collection.updateOne(
             {_id: listingId},

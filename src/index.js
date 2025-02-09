@@ -15,12 +15,12 @@ if (process.argv.includes('--presentation')) {
     logger.info('Running in PRESENTATION mode.');
     // Presentation mode: non-headless, scanning off (no extra delays/visuals)
     config.puppeteer.launch.headless = false;
-    config.scanning = false;
+    // config.scanning = false;
 } else if (process.argv.includes('--server')) {
     logger.info('Running in SERVER mode.');
     // Server mode: headless, scanning on (default production configuration)
     config.puppeteer.launch.headless = true;
-    config.scanning = true;
+    // config.scanning = true;
 } else {
     logger.info('No mode flag provided; using default configuration.');
 }

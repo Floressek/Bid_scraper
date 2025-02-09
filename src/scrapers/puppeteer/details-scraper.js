@@ -5,6 +5,8 @@ const config = require('../../utils/config/config');
 const {createLogger} = require('../../utils/logger/logger');
 const SCRAPER_TYPES = require('../../scrapers/base/scraper-types');
 const OpenAI = require('openai');
+const {getRandomUserAgent} = require("../../utils/helpers/browser-helpers");
+
 
 const logger = createLogger(__filename);
 
@@ -39,7 +41,7 @@ class DetailedScraperWorker extends BaseScraper {
         this.browser = await puppeteer.launch({
             product: 'chrome',
             executablePath: process.env.CHROME_PATH || undefined,
-            headless: true,
+            headless: config.puppeteer.launch.headless,
             defaultViewport: {
                 width: 1920,
                 height: 1080
@@ -54,7 +56,8 @@ class DetailedScraperWorker extends BaseScraper {
         });
 
         this.page = await this.browser.newPage();
-        await this.page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
+        // await this.page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
+        await this.page.setUserAgent(getRandomUserAgent());
         await this.page.setViewport({width: 1920, height: 1080});
     }
 
