@@ -18,6 +18,7 @@
     "scrape:api": "node src/scrapers/official-api/official-api-scraper.js"
   },
   "dependencies": {
+    "chalk": "^4.1.2",
     "cheerio": "^1.0.0-rc.12",
     "dotenv": "^16.4.7",
     "mongodb": "^6.12.0",
@@ -26,6 +27,7 @@
     "puppeteer": "^24.2.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "terminal-link": "^2.1.1",
     "winston": "^3.10.0"
   },
   "devDependencies": {
